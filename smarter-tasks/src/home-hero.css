@@ -1,0 +1,272 @@
+:root {
+  --hero-max: 1126px;
+}
+
+.home-hero-wrap {
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  padding: 64px 18px 24px;
+}
+
+.home-hero {
+  max-width: var(--hero-max);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 28px;
+  align-items: center;
+}
+
+/* Gradient backdrop + subtle glow */
+.home-hero-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(700px circle at 10% 0%, rgba(0, 102, 255, 0.22), transparent 55%),
+    radial-gradient(600px circle at 100% 20%, rgba(102, 178, 255, 0.18), transparent 60%),
+    linear-gradient(180deg, rgba(0, 102, 255, 0.08), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+.home-hero-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(0, 102, 255, 0.18);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.home-hero-card::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  background:
+    radial-gradient(400px circle at 30% 0%, rgba(0, 102, 255, 0.18), transparent 55%),
+    radial-gradient(400px circle at 100% 100%, rgba(102, 178, 255, 0.14), transparent 55%);
+  pointer-events: none;
+}
+
+.home-hero-card-inner {
+  position: relative;
+  padding: 18px;
+}
+
+.home-hero-image {
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+  display: block;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.home-hero-text {
+  position: relative;
+  text-align: left;
+}
+
+.home-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 102, 255, 0.18);
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 10px 22px rgba(0, 102, 255, 0.06);
+  margin-bottom: 14px;
+  font-weight: 600;
+}
+
+.home-hero-badge-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 6px rgba(0, 102, 255, 0.12);
+}
+
+.home-hero-title {
+  font-size: 56px;
+  line-height: 1.05;
+  letter-spacing: -1.5px;
+  margin: 0 0 14px;
+  color: #0056cc;
+}
+
+.home-hero-subtitle {
+  font-size: 18px;
+  line-height: 1.6;
+  margin: 0 0 22px;
+  color: var(--text);
+  opacity: 0.9;
+}
+
+.home-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.home-btn {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-weight: 700;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.home-btn:active {
+  transform: translateY(1px);
+}
+
+.home-btn-primary {
+  background: var(--accent);
+  color: white;
+  box-shadow: 0 12px 26px rgba(0, 102, 255, 0.18);
+}
+
+.home-btn-primary:hover {
+  background: #0056cc;
+  box-shadow: 0 14px 30px rgba(0, 102, 255, 0.25);
+}
+
+.home-btn-secondary {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--text);
+  border: 1px solid rgba(0, 102, 255, 0.22);
+}
+
+.home-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(0, 102, 255, 0.35);
+}
+
+.home-hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.home-stat {
+  padding: 12px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 102, 255, 0.16);
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.home-stat strong {
+  display: block;
+  font-size: 18px;
+  margin-bottom: 4px;
+  color: var(--text-h);
+}
+
+.home-stat span {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.62);
+}
+
+/* Feature grid under hero */
+.home-feature-grid {
+  max-width: var(--hero-max);
+  margin: 18px auto 0;
+  padding: 0 0 18px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.home-feature {
+  padding: 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 102, 255, 0.14);
+  box-shadow: 0 10px 18px rgba(0, 102, 255, 0.05);
+}
+
+.home-feature h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  color: var(--text-h);
+}
+
+.home-feature p {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.7);
+  line-height: 1.5;
+}
+
+@media (max-width: 1024px) {
+  .home-hero-title {
+    font-size: 44px;
+  }
+  .home-hero {
+    grid-template-columns: 1fr;
+  }
+  .home-feature-grid {
+    grid-template-columns: 1fr;
+  }
+  .home-hero-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .home-hero-wrap {
+    padding-top: 44px;
+  }
+  .home-hero-title {
+    font-size: 36px;
+    letter-spacing: -1px;
+  }
+  .home-hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .home-btn {
+    width: 100%;
+  }
+  .home-hero-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Prefer dark vars when theme is toggled (class .dark exists in index.css) */
+.dark .home-hero-wrap::before {
+  background:
+    radial-gradient(700px circle at 10% 0%, rgba(102, 178, 255, 0.22), transparent 55%),
+    radial-gradient(600px circle at 100% 20%, rgba(102, 178, 255, 0.14), transparent 60%),
+    linear-gradient(180deg, rgba(102, 178, 255, 0.10), rgba(0, 0, 51, 0));
+}
+
+.dark .home-hero-card,
+.dark .home-hero-badge,
+.dark .home-stat,
+.dark .home-feature {
+  background: rgba(22, 23, 29, 0.6);
+  border-color: rgba(102, 178, 255, 0.18);
+}
+
+.dark .home-hero-subtitle {
+  color: rgba(224, 224, 255, 0.9);
+}
+
+.dark .home-feature p,
+.dark .home-stat span {
+  color: rgba(224, 224, 255, 0.75);
+}
+

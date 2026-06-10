@@ -1,14 +1,15 @@
 import { MembersProvider } from "../../context/members";
 import MemberList from "./MemberList";
 import NewMember from "./NewMember";
-import { useAuth, type UserRole } from "../../context/auth";
+import { useAuth } from "../../context/auth";
+import type { UserRole } from "../../context/auth";
 
 const Members = () => {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const canAddMember = role === "admin";
 
   return (
-    <MembersProvider>
+    <MembersProvider createdBy={user?.email}>
       <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
         <div className="max-w-2xl w-full bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center">

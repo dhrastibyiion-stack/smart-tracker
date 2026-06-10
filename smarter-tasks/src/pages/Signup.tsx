@@ -1,14 +1,24 @@
-﻿import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { registerUser, getUsers, saveUsers } from '../utils/authUtils';
+﻿import React, { useState, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { validateInvitation, registerUser, getUsers, saveUsers } from '../utils/authUtils';
+import { UserRole } from '../config/constants';
+
+const ALLOWED_SETUP_ROLES: readonly UserRole[] = ['dev', 'projectManager'];
 
 const Signup = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialToken = searchParams.get('token') ?? '';
+  const invitationFromToken = useMemo(() => {
+    if (!initialToken) return null;
+    return validateInvitation(initialToken);
+  }, [initialToken]);
+
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    role: 'dev'
+    name: invitationFromToken?.name ?? '',
+    email: invitationFromToken?.email ?? '',
+    password: invitationFromToken ? '' : '________',
+    role: invitationFromToken?.role ?? 'dev',
   });
   const [error, setError] = useState('');
 
@@ -58,9 +68,11 @@ const Signup = () => {
           </div>
           <button type="submit" className="auth-button">Sign Up</button>
         </form>
+        <button type="button" className="auth-back-button" onClick={() => navigate('/')}>Back to Home</button>
         <p className="auth-switch">
           Already have an account? <span onClick={() => navigate('/signin')}>Sign In</span>
         </p>
+
       </div>
     </div>
   );

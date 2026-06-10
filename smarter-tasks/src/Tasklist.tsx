@@ -6,6 +6,7 @@ type Props = {
   status: TaskStatus;
   onDeleteTask: (taskId: string, status: TaskStatus) => void;
   onToggleStatus: (taskId: string) => void;
+  onOpenComment: (taskId: string) => void;
   role: string;
 };
 
@@ -22,8 +23,10 @@ const TaskListFC = (props: Props) => {
             title={task.title}
             dueDate={task.dueDate}
             description={task.description}
+            comments={task.comments ?? []}
             onDelete={() => props.onDeleteTask(task.id, props.status)}
             onToggleStatus={() => props.onToggleStatus(task.id)}
+            onOpenComment={() => props.onOpenComment(task.id)}
             status={props.status}
             canDelete={canDelete}
           />

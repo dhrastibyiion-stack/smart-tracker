@@ -2,24 +2,34 @@ import { Dialog, Transition } from "@headlessui/react";
 import { Fragment, useState } from "react";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { useMembers } from "../../context/members";
+import { useAuth } from "../../context/auth";
+import { UserRole, normalizeRole } from "../../config/constants";
 
 type Inputs = {
   name: string;
   email: string;
   password: string;
+  confirmPassword: string;
+  role: UserRole;
 };
 
 const NewMember = () => {
   const [isOpen, setIsOpen] = useState(false);
-
-  const { createMember, isLoading, error } = useMembers();
+  const { role: currentUserRole } = useAuth();
+  const { createMember, isLoading, error, members } = useMembers();
+  const { user: currentUser } = useAuth();
+  const currentUserCompany =
+    currentUser?.companyId ??
+    members.find((m) => m.email === currentUser?.username)?.companyId ??
+    members.at(0)?.companyId ??
+    "";
 
   const {
     register,
     handleSubmit,
-    formState: { errors },
     reset,
-  } = useForm<Inputs>();
+    formState: { errors },
+  } = useForm<Inputs>({ defaultValues: { role: UserRole.DEV } });
 
   const openModal = () => setIsOpen(true);
   const closeModal = () => {
@@ -30,7 +40,14 @@ const NewMember = () => {
 
   const onSubmit: SubmitHandler<Inputs> = async (data) => {
     try {
-      await createMember(data);
+      await createMember({
+        name: data.name.trim(),
+        email: data.email.trim().toLowerCase(),
+        role: normalizeRole(data.role),
+        companyId: currentUserCompany,
+        password: data.password,
+        createdBy: currentUser?.email ?? currentUser?.username ?? "",
+      });
       setIsOpen(false);
       reset();
     } catch {
@@ -124,6 +141,21 @@ const NewMember = () => {
                       </div>
 
                       <div>
+                        <label htmlFor="role" className="block text-gray-700 font-semibold mb-2">
+                          Role
+                        </label>
+                        <select
+                          id="role"
+                          disabled={isLoading}
+                          {...register("role", { required: true })}
+                          className="w-full border rounded-md py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:border-blue-500 focus:shadow-outline-blue"
+                        >
+                          <option value={UserRole.PROJECT_MANAGER}>Project Manager</option>
+                          <option value={UserRole.DEV}>Developer</option>
+                        </select>
+                      </div>
+
+                      <div>
                         <label htmlFor="password" className="block text-gray-700 font-semibold mb-2">
                           Password
                         </label>
@@ -132,13 +164,32 @@ const NewMember = () => {
                           placeholder="Enter password..."
                           id="password"
                           disabled={isLoading}
-                          {...register("password", { required: true })}
+                          {...register("password", { required: true, minLength: 6 })}
                           className={`w-full border rounded-md py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:border-blue-500 focus:shadow-outline-blue ${
                             errors.password ? "border-red-500" : ""
                           }`}
                         />
                         {errors.password && (
-                          <span className="text-sm text-red-600">This field is required</span>
+                          <span className="text-sm text-red-600">At least 6 characters</span>
+                        )}
+                      </div>
+
+                      <div>
+                        <label htmlFor="confirmPassword" className="block text-gray-700 font-semibold mb-2">
+                          Confirm Password
+                        </label>
+                        <input
+                          type="password"
+                          placeholder="Confirm password..."
+                          id="confirmPassword"
+                          disabled={isLoading}
+                          {...register("confirmPassword", { required: true, minLength: 6 })}
+                          className={`w-full border rounded-md py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:border-blue-500 focus:shadow-outline-blue ${
+                            errors.confirmPassword ? "border-red-500" : ""
+                          }`}
+                        />
+                        {errors.confirmPassword && (
+                          <span className="text-sm text-red-600">Passwords do not match or are too short</span>
                         )}
                       </div>
 

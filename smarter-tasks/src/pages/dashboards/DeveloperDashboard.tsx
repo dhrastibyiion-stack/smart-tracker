@@ -1,695 +1,906 @@
-﻿import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+﻿import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useAuth } from "../../context/auth";
 import { useTasks } from "../../context/tasks";
 import { useMembers } from "../../context/members";
-import { useLeaveRequests } from "../../context/leaveRequests";
 import { useProjects } from "../../context/projects";
-import { useComments } from "../../context/comments";
+import { useLeaveRequests } from "../../context/leaveRequests";
 import { useTimeTracking } from "../../context/timeTracking";
-import { TaskStatus, RequestStatus } from "../../config/constants";
+import { TaskStatus } from "../../config/constants";
+import type { Task } from "../../context/tasks/TasksContext";
+import type { LeaveRequest } from "../../context/leaveRequests/LeaveRequestsContext";
+import type { TimeLog } from "../../context/timeTracking/TimeTrackingContext";
+import CommentDialog from "../../CommentDialog";
+import "../leaveRequests/LeaveRequests.css";
+import "../../TaskCard.css";
 
 const DeveloperDashboard = () => {
   const { user, role, logout } = useAuth();
-  const { tasks, isLoading: tasksLoading, updateTaskStatus } = useTasks();
-  const { members, isLoading: membersLoading } = useMembers();
-  const { leaveRequests, isLoading: leavesLoading, createLeaveRequest, deleteLeaveRequest } = useLeaveRequests();
-  const { projects, isLoading: projectsLoading } = useProjects();
-  const { comments, isLoading: commentsLoading, addComment } = useComments();
-  const { timeLogs, isLoading: timeLoading, addTimeLog } = useTimeTracking();
+  const { tasks, updateTaskStatus, deleteTask, restoreTask, getDeletedTasks, updateTaskComments } = useTasks();
+  const { members } = useMembers();
+  const { projects } = useProjects();
+  const { createLeaveRequest, leaveRequests } = useLeaveRequests();
+  const { timeLogs, addTimeLog, deleteTimeLog, updateTimeLog, recordActivity } = useTimeTracking();
   const navigate = useNavigate();
-  const canAccess = role === "dev"; // Only developers
+  const canAccess = role === "dev";
 
-  const [activeSection, setActiveSection] = useState<"tasks" | "leaves">("tasks");
-  const [newLeave, setNewLeave] = useState({ startDate: "", endDate: "", reason: "" });
-  const [leaveError, setLeaveError] = useState<string | null>(null);
-  const [leaveSuccess, setLeaveSuccess] = useState<string | null>(null);
-  const [commentTaskId, setCommentTaskId] = useState<number | null>(null);
-  const [newComment, setNewComment] = useState("");
-  const [commentError, setCommentError] = useState<string | null>(null);
-  const [commentSuccess, setCommentSuccess] = useState<string | null>(null);
-  const [timeTaskId, setTimeTaskId] = useState<number | null>(null);
-  const [timeHours, setTimeHours] = useState<number>(0);
-  const [timeDate, setTimeDate] = useState<string>("");
-  const [timeDescription, setTimeDescription] = useState<string>("");
-  const [timeError, setTimeError] = useState<string | null>(null);
-  const [timeSuccess, setTimeSuccess] = useState<string | null>(null);
+  const loginRecordedRef = useRef(false);
 
-  // Find the current member's id by matching the user's username to member's email or name
+  const [showLeaveForm, setShowLeaveForm] = useState(false);
+  const [showActivitySection, setShowActivitySection] = useState(false);
+  const [leaveName, setLeaveName] = useState("");
+  const [leaveReason, setLeaveReason] = useState("");
+  const [leaveFrom, setLeaveFrom] = useState("");
+  const [leaveTo, setLeaveTo] = useState("");
+  const [leaveMessage, setLeaveMessage] = useState("");
+  const [leaveError, setLeaveError] = useState("");
+
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
+  const [editingTask, setEditingTask] = useState({ title: "", description: "", assignedTo: "", projectId: "" });
+  const [editingTaskError, setEditingTaskError] = useState("");
+  const [editingTaskSuccess, setEditingTaskSuccess] = useState("");
+
+  const [activeCommentTaskId, setActiveCommentTaskId] = useState<number | null>(null);
+
+  const [deletedTasks, setDeletedTasks] = useState<Task[]>([]);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+
   const currentMemberId = members.find(
     (m) => m.email === user?.username || m.name === user?.name
   )?.id;
 
-  // Filter tasks assigned to the current member
-  const myTasks = tasks.filter((t) => t.assignedTo === currentMemberId);
+  const myTasks = tasks.filter((t) => t.assignedTo === currentMemberId && (t.companyId === user?.companyId || !t.companyId));
+  const taskOptions = myTasks.filter((t) => t.status === TaskStatus.IN_PROGRESS || t.status === TaskStatus.PENDING);
 
-  // Filter leave requests by the current member's id
-  const myLeaveRequests = leaveRequests.filter((lr) => lr.requesterId === currentMemberId);
+  const [logHours, setLogHours] = useState("");
+  const [logDate, setLogDate] = useState("");
+  const [logDescription, setLogDescription] = useState("");
+  const [logTaskId, setLogTaskId] = useState("");
+  const [logSuccess, setLogSuccess] = useState("");
+  const [logError, setLogError] = useState("");
 
-   // Create a map for project names (projectId as string -> project name)
-   const projectMap = new Map<string, string>();
-   projects.forEach((p) => {
-     projectMap.set(p.id.toString(), p.name);
-   });
+  const [editingLogId, setEditingLogId] = useState<number | null>(null);
+  const [editHours, setEditHours] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editTaskId, setEditTaskId] = useState("");
+  const [editMessage, setEditMessage] = useState("");
 
-   // Calculate work overview stats
-   const currentTask = myTasks.find((t) => t.status === TaskStatus.IN_PROGRESS) || myTasks[0] || null;
-   const pendingTasks = myTasks.filter((t) => t.status !== TaskStatus.COMPLETED).length;
-   const completedTasks = myTasks.filter((t) => t.status === TaskStatus.COMPLETED).length;
-   
-   // Calculate leave taken (approved leave requests)
-   const leaveTakenDays = myLeaveRequests
-     .filter((lr) => lr.status === RequestStatus.APPROVED)
-     .reduce((sum, lr) => sum + lr.days, 0);
-   
-   // Calculate time logged today (simplified - you might want to filter by actual today)
-   const today = new Date().toISOString().split('T')[0];
-   const timeLoggedToday = timeLogs
-     .filter((log) => log.date === today)
-     .reduce((sum, log) => sum + log.hours, 0);
+  const memberMap = new Map<number, string>();
+  members.forEach((m) => memberMap.set(m.id, m.name));
 
-   if (!canAccess) {
-    return (
-      <div style={{ padding: "24px", fontFamily: "sans-serif" }}>
-        <h1>Access Denied</h1>
-        <p>Only Developers can view this dashboard.</p>
-      </div>
-    );
-  }
+  const projectMap = new Map<string, string>();
+  projects.forEach((p) => projectMap.set(String(p.id), p.name));
 
-  const handleLogout = () => {
-    logout();
-    navigate("/", { replace: true });
+  const getAssigneeName = (taskAssigneeId: number | undefined) => {
+    if (!taskAssigneeId) return "Unassigned";
+    return memberMap.get(taskAssigneeId) || "Unknown";
   };
 
-  const handleCreateLeave = (e: React.FormEvent) => {
-    e.preventDefault();
-    setLeaveError(null);
-    setLeaveSuccess(null);
+  const pendingTasks = useMemo(() => myTasks.filter((t) => t.status !== TaskStatus.COMPLETED), [myTasks]);
+  const doneTasks = useMemo(() => myTasks.filter((t) => t.status === TaskStatus.COMPLETED), [myTasks]);
 
-    if (!newLeave.startDate || !newLeave.endDate || !newLeave.reason || !currentMemberId) {
-      setLeaveError("Please fill in all fields");
-      return;
-    }
+  const myLeaveRequests = useMemo(
+    () => (leaveRequests || []).filter((lr) => lr.companyId === user?.companyId && (lr.requesterId === currentMemberId || lr.requesterName === user?.name)),
+    [leaveRequests, user?.companyId, currentMemberId]
+  );
 
-    const startDate = new Date(newLeave.startDate);
-    const endDate = new Date(newLeave.endDate);
+  const myTimeLogs = useMemo(
+    () => (timeLogs || []).filter((log) => (log.companyId === user?.companyId || !log.companyId) && log.userId === currentMemberId),
+    [timeLogs, user?.companyId, currentMemberId]
+  );
 
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-      setLeaveError("Invalid date selected");
-      return;
-    }
+  useEffect(() => {
+    setDeletedTasks(getDeletedTasks());
+  }, [getDeletedTasks, tasks]);
 
-    if (endDate < startDate) {
-      setLeaveError("End date must be after start date");
-      return;
-    }
+  useEffect(() => {
+    if (!user || !currentMemberId || loginRecordedRef.current) return;
+    loginRecordedRef.current = true;
 
-    // Calculate inclusive days: (end - start) / (24*60*60*1000) + 1
-    const timeDiff = endDate.getTime() - startDate.getTime();
-    const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1;
+    recordActivity({
+      userId: currentMemberId,
+      userName: user.name,
+      event: "login",
+    }).catch(() => {
+      loginRecordedRef.current = false;
+    });
+  }, [user, currentMemberId, recordActivity]);
 
-    createLeaveRequest({
-      requesterId: currentMemberId,
-      requesterName: user?.name ?? "",
-      days: days,
-      reason: newLeave.reason,
-    })
-    .then(() => {
-      setLeaveSuccess("Leave request submitted successfully!");
-      setNewLeave({ startDate: "", endDate: "", reason: "" });
-    })
-    .catch((error) => {
-      setLeaveError("Failed to submit leave request. Please try again.");
-      console.error("Leave request error:", error);
-     });
-   };
-
-   const handleCreateComment = async (e: React.FormEvent) => {
-     e.preventDefault();
-     setCommentError(null);
-     setCommentSuccess(null);
-
-     if (!commentTaskId || !newComment.trim() || !currentMemberId) {
-       setCommentError("Please select a task and enter a comment");
-       return;
-     }
-
-     try {
-       await addComment({
-         taskId: commentTaskId,
-         authorId: currentMemberId,
-         authorName: user?.name ?? "",
-         content: newComment.trim(),
-       });
-       setCommentSuccess("Comment added successfully!");
-       setNewComment("");
-       setCommentTaskId(null);
-     } catch (error) {
-       setCommentError("Failed to add comment. Please try again.");
-       console.error("Comment error:", error);
-     }
-   };
-
-   const handleCreateTimeLog = async (e: React.FormEvent) => {
-     e.preventDefault();
-     setTimeError(null);
-     setTimeSuccess(null);
-
-     if (!timeTaskId || timeHours <= 0 || !timeDate || !currentMemberId) {
-       setTimeError("Please select a task, enter hours, and select a date");
-       return;
-     }
-
-     try {
-       await addTimeLog({
-         taskId: timeTaskId,
-         userId: currentMemberId,
-         userName: user?.name ?? "",
-         hours: timeHours,
-         date: timeDate,
-         description: timeDescription,
-       });
-       setTimeSuccess("Time log added successfully!");
-       setTimeTaskId(null);
-       setTimeHours(0);
-       setTimeDate("");
-       setTimeDescription("");
-     } catch (error) {
-       setTimeError("Failed to add time log. Please try again.");
-       console.error("Time log error:", error);
-     }
-   };
-
-  return (
-    <div className="pm-layout">
-<nav className="pm-sidebar">
+  if (!canAccess) {
+    return (
+      <div className="pm-layout">
+        <div className="pm-sidebar">
           <div className="pm-brand">
             <div className="brand-badge">S</div>
             <strong>Smarter Tasks</strong>
           </div>
+        </div>
+        <main className="pm-main">
+          <h1>Access Denied</h1>
+          <p>Only Developers can view this dashboard.</p>
+        </main>
+      </div>
+    );
+  }
 
-          <div className="pm-nav-links">
-           <button
-             className={activeSection === "tasks" ? "pm-nav-link active" : "pm-nav-link"}
-             onClick={() => setActiveSection("tasks")}
-           >
-              My Tasks
-           </button>
-           <button
-             className={activeSection === "leaves" ? "pm-nav-link active" : "pm-nav-link"}
-             onClick={() => setActiveSection("leaves")}
-           >
-             Leave Requests
-           </button>
-         </div>
+  const handleLogout = async () => {
+    if (currentMemberId && user?.name) {
+      try {
+        await recordActivity({
+          userId: currentMemberId,
+          userName: user.name,
+          event: "logout",
+        });
+      } catch {}
+    }
+    logout();
+    navigate("/", { replace: true });
+  };
 
-         <button className="pm-logout" onClick={handleLogout}>
-           Logout
-         </button>
-       </nav>
+  const handleLeaveSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLeaveError("");
+    setLeaveMessage("");
 
-<main className="pm-main">
-         <header className="pm-header">
-           <h1>Developer Dashboard</h1>
-           <p>Welcome, {user?.name}. View your assigned tasks and manage your leave requests.</p>
-         </header>
+    if (!leaveName.trim() || !leaveReason.trim() || !leaveFrom || !leaveTo) {
+      setLeaveError("Please fill in all fields.");
+      return;
+    }
 
-         {/* Work Overview */}
-         <div style={{ 
-           backgroundColor: "#f8fafc", 
-           padding: "20px", 
-           borderRadius: "8px", 
-           border: "1px solid #e2e8f0",
-           marginBottom: "24px"
-         }}>
-           <h2 style={{ margin: "0 0 16px 0", color: "#2d3748" }}>Work Overview</h2>
-           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
-             <div style={{ display: "flex", justifyContent: "space-between" }}>
-               <span style={{ fontWeight: "600", color: "#4a5568" }}>Role:</span>
-               <span style={{ color: "#2d3748" }}>{user?.role?.toUpperCase() || "DEV"}</span>
-             </div>
-             <div style={{ display: "flex", justifyContent: "space-between" }}>
-               <span style={{ fontWeight: "600", color: "#4a5568" }}>Current Task:</span>
-               <span style={{ color: "#2d3748", fontStyle: "italic" }}>
-                 {currentTask ? `${currentTask.title} ${currentTask.projectId ? `(${projectMap.get(currentTask.projectId) || currentTask.projectId})` : ""}` : "No active task"}
-               </span>
-             </div>
-             <div style={{ display: "flex", justifyContent: "space-between" }}>
-               <span style={{ fontWeight: "600", color: "#4a5568" }}>Tasks:</span>
-               <span style={{ color: "#2d3748" }}>
-                 {pendingTasks} pending • {completedTasks} completed
-               </span>
-             </div>
-             <div style={{ display: "flex", justifyContent: "space-between" }}>
-               <span style={{ fontWeight: "600", color: "#4a5568" }}>Leave Taken:</span>
-               <span style={{ color: "#2d3748" }}>{leaveTakenDays} days</span>
-             </div>
-             <div style={{ display: "flex", justifyContent: "space-between" }}>
-               <span style={{ fontWeight: "606", color: "#4a5568" }}>Time Logged (Today):</span>
-               <span style={{ color: "#2d3748" }}>{timeLoggedToday} hours</span>
-             </div>
-           </div>
-         </div>
+    if (new Date(leaveFrom) > new Date(leaveTo)) {
+      setLeaveError("From date cannot be after To date.");
+      return;
+    }
 
-         <div className="pm-content">
-          {activeSection === "tasks" && (
-            <section className="pm-section">
-              <h2> My Assigned Tasks</h2>
-                {(tasksLoading || membersLoading || projectsLoading || commentsLoading || timeLoading) ? (
-                  <p style={{ textAlign: "center", color: "#666", padding: "20px" }}>Loading your tasks...</p>
-              ) : (
-                myTasks.length === 0 ? (
-                  <p style={{ textAlign: "center", color: "#666", padding: "20px" }}>
-                    No tasks assigned to you yet. Contact your project manager for task assignments.
-                  </p>
-                 ) : (
-                   <ul style={{ listStyle: "none", padding: 0 }}>
-{myTasks.map((t) => {
-                        return (
-                         <li key={t.id} style={{ 
-                           marginBottom: "16px", 
-                           padding: "16px", 
-                           border: "1px solid #e2e8f0", 
-                           borderRadius: "8px",
-                           backgroundColor: "#f8fafc"
-                         }}>
-                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                              <div>
-                                <h3 style={{ margin: "0 0 8px 0", color: "#2d3748" }}>{t.title}</h3>
-                                <p style={{ margin: "0 0 12px 0", color: "#4a5568" }}>
-                                  Project: <strong>{projectMap.get(t.projectId) || t.projectId}</strong>
-                                </p>
-                                <p style={{ margin: "0", fontSize: "14px", color: "#718096" }}>
-                                  Status: 
-                                  <span style={{ 
-                                    textTransform: "capitalize", 
-                                    fontWeight: "600",
-                                    color: t.status === TaskStatus.COMPLETED ? "#38a169" :
-                                         t.status === TaskStatus.IN_PROGRESS ? "#63b3ed" :
-                                         "#e53e3e"
-                                  }}>
-                                    {t.status}
-                                  </span>
-                                </p>
-                                
-                                {/* Comments Section */}
-                                {(() => {
-                                  const taskComments = comments.filter(c => c.taskId === t.id);
-                                  
-                                  return taskComments.length > 0 ? (
-                                    <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid #e2e8f0" }}>
-                                      <p style={{ margin: "0 0 8px 0", fontWeight: "600", color: "#2d3748" }}>Comments ({taskComments.length})</p>
-                                      {taskComments.map((comment) => (
-                                        <div key={comment.id} style={{ 
-                                          marginBottom: "8px", 
-                                          padding: "8px", 
-                                          backgroundColor: "#f1f5f9",
-                                          borderRadius: "4px"
-                                        }}>
-                                          <p style={{ margin: "0 0 4px 0", fontWeight: "600", color: "#1e293b" }}>
-                                            {comment.authorName}
-                                          </p>
-                                          <p style={{ margin: "0", color: "#475569" }}>
-                                            {comment.content}
-                                          </p>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : null;
-                                })()}
-                                
-                                {/* Add Comment Form */}
-                                <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px dashed #cbd5e0" }}>
-                                    {commentError && <p style={{ color: "#e53e3e", marginBottom: "8px" }}>{commentError}</p>}
-                                    {commentSuccess && <p style={{ color: "#38a169", marginBottom: "8px" }}>{commentSuccess}</p>}
-                                    <form onSubmit={handleCreateComment} style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                                      <select
-                                        value={commentTaskId || ""}
-                                        onChange={(e) => setCommentTaskId(e.target.value ? parseInt(e.target.value) : null)}
-                                        style={{ 
-                                          flex: "1 1 200px", 
-                                          padding: "8px", 
-                                          border: "1px solid #cbd5e0", 
-                                          borderRadius: "4px",
-                                          fontSize: "14px"
-                                        }}
-                                      >
-                                        <option value="">Select a task to comment</option>
-                                        {myTasks.map((task) => (
-                                          <option key={task.id} value={task.id}>
-                                            {task.title}
-                                          </option>
-                                        ))}
-                                      </select>
-                                      <input
-                                        type="text"
-                                        value={newComment}
-                                        onChange={(e) => setNewComment(e.target.value)}
-                                        placeholder="Add a comment..."
-                                        style={{ 
-                                          flex: "2 1 300px", 
-                                          padding: "8px", 
-                                          border: "1px solid #cbd5e0", 
-                                          borderRadius: "4px",
-                                          fontSize: "14px"
-                                        }}
-                                      />
-                                      <button
-                                        type="submit"
-                                        style={{ 
-                                          padding: "8px 16px", 
-                                          background: "#38a169", 
-                                          color: "white", 
-                                          border: "none", 
-                                          borderRadius: "4px",
-                                          fontSize: "14px",
-                                          cursor: "pointer",
-                                          transition: "background-color 0.2s"
-                                        }}
-                                      >
-                                        Add Comment
-                                      </button>
-                                    </form>
-                                  </div>
-                                
-                                {/* Time Tracking Section */}
-                                {/* Filter time logs for this task */}
-                                {(() => {
-                                  const taskTimeLogs = timeLogs.filter(l => l.taskId === t.id);
-                                  const totalHours = taskTimeLogs.reduce((sum, log) => sum + log.hours, 0);
-                                  
-                                  return taskTimeLogs.length > 0 ? (
-                                    <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid #e2e8f0" }}>
-                                      <p style={{ margin: "0 0 8px 0", fontWeight: "600", color: "#2d3748" }}>Time Logged ({totalHours} hours)</p>
-                                      {taskTimeLogs.map((log) => (
-                                        <div key={log.id} style={{ 
-                                          marginBottom: "8px", 
-                                          padding: "8px", 
-                                          backgroundColor: "#f1f5f9",
-                                          borderRadius: "4px"
-                                        }}>
-                                          <p style={{ margin: "0 0 4px 0", fontWeight: "600", color: "#1e293b" }}>
-                                            {log.userName}
-                                          </p>
-                                          <p style={{ margin: "0", color: "#475569" }}>
-                                            {log.hours} hours on {new Date(log.date).toLocaleDateString()} - {log.description}
-                                          </p>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : null;
-                                })()}
-                                
-                                {/* Add Time Log Form */}
-                                <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px dashed #cbd5e0" }}>
-                                    {timeError && <p style={{ color: "#e53e3e", marginBottom: "8px" }}>{timeError}</p>}
-                                    {timeSuccess && <p style={{ color: "#38a169", marginBottom: "8px" }}>{timeSuccess}</p>}
-                                    <form onSubmit={handleCreateTimeLog} style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                                      <select
-                                        value={timeTaskId || ""}
-                                        onChange={(e) => setTimeTaskId(e.target.value ? parseInt(e.target.value) : null)}
-                                        style={{ 
-                                          flex: "1 1 200px", 
-                                          padding: "8px", 
-                                          border: "1px solid #cbd5e0", 
-                                          borderRadius: "4px",
-                                          fontSize: "14px"
-                                        }}
-                                      >
-                                        <option value="">Select a task to log time</option>
-                                        {myTasks.map((task) => (
-                                          <option key={task.id} value={task.id}>
-                                            {task.title}
-                                          </option>
-                                        ))}
-                                      </select>
-                                      <input
-                                        type="number"
-                                        value={timeHours}
-                                        onChange={(e) => setTimeHours(parseFloat(e.target.value) || 0)}
-                                        placeholder="Hours"
-                                        min="0.1"
-                                        step="0.1"
-                                        style={{ 
-                                          flex: "0 0 80px", 
-                                          padding: "8px", 
-                                          border: "1px solid #cbd5e0", 
-                                          borderRadius: "4px",
-                                          fontSize: "14px"
-                                        }}
-                                      />
-                                      <input
-                                        type="date"
-                                        value={timeDate}
-                                        onChange={(e) => setTimeDate(e.target.value)}
-                                        style={{ 
-                                          flex: "0 0 120px", 
-                                          padding: "8px", 
-                                          border: "1px solid #cbd5e0", 
-                                          borderRadius: "4px",
-                                          fontSize: "14px"
-                                        }}
-                                      />
-                                      <input
-                                        type="text"
-                                        value={timeDescription}
-                                        onChange={(e) => setTimeDescription(e.target.value)}
-                                        placeholder="Description (optional)"
-                                        style={{ 
-                                          flex: "1 1 200px", 
-                                          padding: "8px", 
-                                          border: "1px solid #cbd5e0", 
-                                          borderRadius: "4px",
-                                          fontSize: "14px"
-                                        }}
-                                      />
-                                      <button
-                                        type="submit"
-                                        style={{ 
-                                          padding: "8px 16px", 
-                                          background: "#38a169", 
-                                          color: "white", 
-                                          border: "none", 
-                                          borderRadius: "4px",
-                                          fontSize: "14px",
-                                          cursor: "pointer",
-                                          transition: "background-color 0.2s"
-                                        }}
-                                      >
-                                        Log Time
-                                      </button>
-                                    </form>
-                                  </div>
-                             </div>
-                             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                               {t.status !== TaskStatus.COMPLETED && (
-                                 <button
-                                   onClick={() => updateTaskStatus(t.id, TaskStatus.IN_PROGRESS)}
-                                   style={{ 
-                                     padding: "8px 16px", 
-                                     background: "#63b3ed", 
-                                     color: "white", 
-                                     border: "none", 
-                                     borderRadius: "4px",
-                                     fontSize: "14px",
-                                     cursor: "pointer",
-                                     transition: "background-color 0.2s"
-                                   }}
-                                 >
-                                   Start Work
-                                 </button>
-                               )}
-                               {t.status === TaskStatus.IN_PROGRESS && (
-                                 <button
-                                   onClick={() => updateTaskStatus(t.id, TaskStatus.COMPLETED)}
-                                   style={{ 
-                                     padding: "8px 16px", 
-                                     background: "#38a169", 
-                                     color: "white", 
-                                     border: "none", 
-                                     borderRadius: "4px",
-                                     fontSize: "14px",
-                                     cursor: "pointer",
-                                     transition: "background-color 0.2s"
-                                   }}
-                                 >
-                                   Mark Complete
-                                 </button>
-                               )}
-                             </div>
-                           </div>
-                         </li>
-                       );
-                     })}
-                   </ul>
-                 )
+    const start = new Date(leaveFrom);
+    const end = new Date(leaveTo);
+    const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+
+    try {
+      await createLeaveRequest({
+        requesterId: currentMemberId || 0,
+        requesterName: leaveName.trim(),
+        days,
+        reason: leaveReason.trim(),
+        startDate: leaveFrom,
+        endDate: leaveTo,
+        companyId: user?.companyId,
+      });
+      setLeaveMessage("Leave request submitted successfully.");
+      setLeaveName("");
+      setLeaveReason("");
+      setLeaveFrom("");
+      setLeaveTo("");
+    } catch (err) {
+      setLeaveMessage("");
+      setLeaveError("Failed to submit leave request.");
+    }
+  };
+
+  const requestDelete = (id: number) => {
+    const confirmed = window.confirm("Are you sure you want to delete this task? You can restore it later from the Trash.");
+    if (confirmed) {
+      setPendingDeleteId(id);
+      deleteTask(id).then(() => {
+        setDeletedTasks(getDeletedTasks());
+        setPendingDeleteId(null);
+      }).catch(() => setPendingDeleteId(null));
+    }
+  };
+
+  const handleRestore = async (id: number) => {
+    await restoreTask(id);
+    setDeletedTasks(getDeletedTasks());
+  };
+
+  const handleAddComment = async (taskId: number, text: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    const next = [...(task?.comments ?? []), text];
+    await updateTaskComments(taskId, next);
+  };
+
+  const startEditTask = (task: Task) => {
+    setEditingTaskId(task.id);
+    setEditingTask({
+      title: task.title,
+      description: task.description || "",
+      projectId: task.projectId,
+      assignedTo: task.assignedTo != null ? String(task.assignedTo) : "",
+    });
+    setEditingTaskError("");
+    setEditingTaskSuccess("");
+  };
+
+  const cancelEditTask = () => {
+    setEditingTaskId(null);
+    setEditingTask({ title: "", description: "", assignedTo: "", projectId: "" });
+    setEditingTaskError("");
+    setEditingTaskSuccess("");
+  };
+
+  const saveEditTask = async () => {
+    if (!editingTask.title.trim()) {
+      setEditingTaskError("Title is required.");
+      return;
+    }
+    setEditingTaskError("");
+    setEditingTaskSuccess("");
+    try {
+      await updateTask(editingTaskId!, {
+        title: editingTask.title.trim(),
+        description: editingTask.description.trim(),
+        projectId: editingTask.projectId,
+        assignedTo: editingTask.assignedTo ? Number(editingTask.assignedTo) : undefined,
+      });
+      setEditingTaskSuccess("Task updated.");
+      cancelEditTask();
+    } catch {
+      setEditingTaskError("Failed to update task.");
+    }
+  };
+
+  const handleLogTimeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLogError("");
+    setLogSuccess("");
+
+    if (!logTaskId || !logHours || !logDate || !logDescription.trim()) {
+      setLogError("Please fill in all fields.");
+      return;
+    }
+
+    try {
+      await addTimeLog({
+        taskId: Number(logTaskId),
+        userId: currentMemberId || 0,
+        userName: user?.name || "",
+        hours: Number(logHours),
+        date: new Date(logDate).toISOString(),
+        description: logDescription.trim(),
+        companyId: user?.companyId,
+      });
+      setLogSuccess("Time log saved.");
+      setLogTaskId("");
+      setLogHours("");
+      setLogDate("");
+      setLogDescription("");
+    } catch (err) {
+      setLogSuccess("");
+      setLogError("Failed to save time log.");
+    }
+  };
+
+  const formatDateTime = (iso?: string | null) => {
+    if (!iso) return null;
+    const date = new Date(iso);
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const updateTaskStatusWithLog = async (id: number, status: string, task: Task) => {
+    await updateTaskStatus(id, status);
+    if (!currentMemberId || !user?.name) return;
+    const event = status === TaskStatus.IN_PROGRESS ? "task_started" : status === TaskStatus.COMPLETED ? "task_completed" : undefined;
+    if (!event) return;
+    try {
+      await recordActivity({
+        userId: currentMemberId,
+        userName: user.name,
+        taskId: task.id,
+        taskTitle: task.title,
+        event,
+      });
+    } catch {}
+  };
+
+  const renderTaskCard = (t: Task, showDelete = false) => {
+    const isPending = pendingDeleteId === t.id;
+    const isEditing = editingTaskId === t.id;
+
+    return (
+      <li key={t.id} className="task-card">
+        <div className="task-card-info">
+          {isEditing ? (
+            <>
+              <input
+                className="pm-input"
+                value={editingTask.title}
+                onChange={(e) =>
+                  setEditingTask({ ...editingTask, title: e.target.value })
+                }
+                placeholder="Task title"
+              />
+              <textarea
+                className="pm-input"
+                rows={3}
+                value={editingTask.description}
+                onChange={(e) =>
+                  setEditingTask({ ...editingTask, description: e.target.value })
+                }
+                placeholder="Description"
+              />
+              <select
+                className="pm-input"
+                value={editingTask.projectId}
+                onChange={(e) =>
+                  setEditingTask({ ...editingTask, projectId: e.target.value })
+                }
+              >
+                <option value="">Select Project</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="pm-input"
+                value={editingTask.assignedTo}
+                onChange={(e) =>
+                  setEditingTask({ ...editingTask, assignedTo: e.target.value })
+                }
+              >
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+              {editingTaskError && (
+                <p className="danger-text">{editingTaskError}</p>
               )}
-            </section>
+              {editingTaskSuccess && (
+                <p className="success-text">{editingTaskSuccess}</p>
+              )}
+            </>
+          ) : (
+            <>
+              <h3>{t.title}</h3>
+              {t.description && <p className="task-card-desc">{t.description}</p>}
+              <p>
+                Project: <strong>{projectMap.get(t.projectId) || t.projectId}</strong>
+              </p>
+              <p>
+                Assigned by: <strong>{t.creatorName || "Unassigned"}</strong>
+              </p>
+              {t.dueDate && (
+                <p className="task-card-meta">
+                  Due: {new Date(t.dueDate).toLocaleString()}
+                </p>
+              )}
+              <p className="task-card-meta">
+                Created: {formatDateTime(new Date(t.createdAt).toISOString())}
+              </p>
+              <p className="task-card-meta">
+                Status:{" "}
+                <span className={`status ${t.status.toLowerCase().replace(/\s+/g, "-")}`}>
+                  {t.status}
+                </span>
+              </p>
+            </>
           )}
+        </div>
+        <div className="task-card-actions">
+          {isEditing ? (
+            <>
+              <button className="task-btn save" onClick={saveEditTask}>
+                Save
+              </button>
+              <button className="task-btn cancel" onClick={cancelEditTask}>
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                className="task-btn edit"
+                onClick={() => startEditTask(t)}
+              >
+                Edit
+              </button>
+              {t.status !== TaskStatus.COMPLETED && (
+                <button
+                  className="task-btn complete"
+                  onClick={() => updateTaskStatusWithLog(t.id, TaskStatus.COMPLETED, t)}
+                >
+                  Complete
+                </button>
+              )}
+               <button
+                 className="task-btn danger"
+                 onClick={() => requestDelete(t.id)}
+                 disabled={isPending}
+               >
+                 {isPending ? "Deleting..." : "Delete"}
+               </button>
+                 <button
+                   className="task-btn comment-btn"
+                   onClick={() => setActiveCommentTaskId(t.id)}
+                 >
+                   Comment
+                 </button>
+             </>
+          )}
+        </div>
+      </li>
+    );
+  };
 
-          {activeSection === "leaves" && (
-            <section className="pm-section">
-              <h2>📅 My Leave Requests</h2>
-              
-              {/* Form Section */}
-              <div style={{ 
-                marginBottom: "24px", 
-                padding: "20px", 
-                border: "1px solid #e2e8f0", 
-                borderRadius: "8px",
-                backgroundColor: "#f8fafc"
-              }}>
-                <h3 style={{ margin: "0 0 16px 0", color: "#2d3748" }}>Request New Leave</h3>
-                {leaveError && <p style={{ color: "#e53e3e", marginBottom: "12px" }}>{leaveError}</p>}
-                {leaveSuccess && <p style={{ color: "#38a169", marginBottom: "12px" }}>{leaveSuccess}</p>}
-                
-                <form onSubmit={handleCreateLeave} style={{ display: "grid", gap: "12px", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-                  <div>
-                    <label htmlFor="startDate" style={{ display: "block", marginBottom: "4px", fontWeight: "600", color: "#4a5568" }}>
-                      Start Date
-                    </label>
-                    <input
-                      type="date"
-                      id="startDate"
-                      value={newLeave.startDate}
-                      onChange={(e) => setNewLeave({ ...newLeave, startDate: e.target.value })}
-                      style={{ 
-                        width: "100%", 
-                        padding: "8px", 
-                        border: "1px solid #cbd5e0", 
-                        borderRadius: "4px",
-                        fontSize: "14px"
-                      }}
-                      min={new Date().toISOString().split('T')[0]}
-                    />
+  return (
+    <div className="pm-layout">
+      <nav className="pm-sidebar">
+        <div className="pm-brand">
+          <div className="brand-badge">S</div>
+          <strong>Smarter Tasks</strong>
+        </div>
+
+        <div className="pm-nav-links">
+          <button
+            className={`pm-nav-link ${!showLeaveForm && !showActivitySection ? "active" : ""}`}
+            onClick={() => { setShowLeaveForm(false); setShowActivitySection(false); }}
+          >
+            My Tasks
+          </button>
+          <button
+            className={`pm-nav-link ${showLeaveForm ? "active" : ""}`}
+            onClick={() => { setShowLeaveForm(true); setShowActivitySection(false); }}
+          >
+            Apply for Leave
+          </button>
+          <button
+            className={`pm-nav-link ${showActivitySection ? "active" : ""}`}
+            onClick={() => { setShowActivitySection(true); setShowLeaveForm(false); }}
+          >
+            Log Time
+          </button>
+        </div>
+
+        <div className="pm-user-info">
+          <div style={{ marginBottom: "8px" }}>
+            <span style={{ display: "block", fontSize: "13px", color: "#a0aec0" }}>Signed in as:</span>
+            <strong style={{ color: "#e2e8f0", fontSize: "15px" }}>{user?.name}</strong>
+          </div>
+          <span style={{ fontSize: "12px", color: "#718096", wordBreak: "break-all" }}>{user?.email || user?.username}</span>
+        </div>
+
+        <button className="pm-logout" onClick={handleLogout}>
+          Logout
+        </button>
+      </nav>
+
+      <main className="pm-main">
+        <header className="pm-header">
+          <h1>Developer Dashboard</h1>
+          <p>Welcome, {user?.name}.</p>
+        </header>
+
+        <div className="pm-content">
+          {showLeaveForm ? (
+            <section className="pm-section" style={{ gridColumn: "1 / -1" }}>
+              <div className="pm-leave-form-card">
+                <h2 className="pm-leave-form-title">Apply for Leave</h2>
+
+                {leaveError && (
+                  <div className="pm-leave-message pm-leave-message-error">
+                    {leaveError}
                   </div>
-                  
-                  <div>
-                    <label htmlFor="endDate" style={{ display: "block", marginBottom: "4px", fontWeight: "600", color: "#4a5568" }}>
-                      End Date
-                    </label>
-                    <input
-                      type="date"
-                      id="endDate"
-                      value={newLeave.endDate}
-                      onChange={(e) => setNewLeave({ ...newLeave, endDate: e.target.value })}
-                      style={{ 
-                        width: "100%", 
-                        padding: "8px", 
-                        border: "1px solid #cbd5e0", 
-                        borderRadius: "4px",
-                        fontSize: "14px"
-                      }}
-                      min={newLeave.startDate || new Date().toISOString().split('T')[0]}
-                    />
+                )}
+                {leaveMessage && (
+                  <div className="pm-leave-message pm-leave-message-success">
+                    {leaveMessage}
                   </div>
-                  
-                  <div>
-                    <label htmlFor="reason" style={{ display: "block", marginBottom: "4px", fontWeight: "600", color: "#4a5568" }}>
-                      Reason
-                    </label>
+                )}
+
+                <form className="pm-leave-form-grid" onSubmit={handleLeaveSubmit}>
+                  <div className="pm-form-group">
+                    <label htmlFor="leaveName">Name</label>
                     <input
+                      id="leaveName"
+                      className="pm-input"
                       type="text"
-                      id="reason"
-                      value={newLeave.reason}
-                      onChange={(e) => setNewLeave({ ...newLeave, reason: e.target.value })}
-                      style={{ 
-                        width: "100%", 
-                        padding: "8px", 
-                        border: "1px solid #cbd5e0", 
-                        borderRadius: "4px",
-                        fontSize: "14px"
-                      }}
+                      placeholder="Your name"
+                      value={leaveName}
+                      onChange={(e) => setLeaveName(e.target.value)}
                     />
                   </div>
-                  
-                  <button
-                    type="submit"
-                    style={{ 
-                      gridColumn: "1 / -1", 
-                      padding: "10px 20px", 
-                      background: "#38a169", 
-                      color: "white", 
-                      border: "none", 
-                      borderRadius: "4px",
-                      fontSize: "14px",
-                      fontWeight: "600",
-                      cursor: "pointer",
-                      transition: "background-color 0.2s"
-                    }}
-                  >
-                    Submit Leave Request
-                  </button>
+
+                  <div className="pm-form-group">
+                    <label htmlFor="leaveFrom">From</label>
+                    <input
+                      id="leaveFrom"
+                      className="pm-input"
+                      type="date"
+                      value={leaveFrom}
+                      onChange={(e) => setLeaveFrom(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="pm-form-group">
+                    <label htmlFor="leaveTo">To</label>
+                    <input
+                      id="leaveTo"
+                      className="pm-input"
+                      type="date"
+                      value={leaveTo}
+                      onChange={(e) => setLeaveTo(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="pm-form-group" style={{ gridColumn: "1 / -1" }}>
+                    <label htmlFor="leaveReason">Reason</label>
+                    <textarea
+                      id="leaveReason"
+                      className="pm-input"
+                      rows={4}
+                      placeholder="Reason for leave"
+                      value={leaveReason}
+                      onChange={(e) => setLeaveReason(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="pm-leave-form-actions">
+                    <button type="submit" className="pm-btn pm-btn-primary">
+                      Submit Leave Request
+                    </button>
+                    <button
+                      type="button"
+                      className="pm-btn pm-btn-secondary"
+                      onClick={() => setShowLeaveForm(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+
+                {(leaveName || leaveReason || leaveFrom || leaveTo) && (
+                  <div className="pm-leave-preview">
+                    <h3>Form Preview</h3>
+                    <div className="pm-leave-preview-grid">
+                      <div className="pm-preview-item">
+                        <span className="pm-preview-label">Name</span>
+                        <span className="pm-preview-value">{leaveName || "-"}</span>
+                      </div>
+                      <div className="pm-preview-item">
+                        <span className="pm-preview-label">From</span>
+                        <span className="pm-preview-value">{leaveFrom ? new Date(leaveFrom).toLocaleDateString() : "-"}</span>
+                      </div>
+                      <div className="pm-preview-item">
+                        <span className="pm-preview-label">To</span>
+                        <span className="pm-preview-value">{leaveTo ? new Date(leaveTo).toLocaleDateString() : "-"}</span>
+                      </div>
+                      <div className="pm-preview-item pm-preview-full">
+                        <span className="pm-preview-label">Reason</span>
+                        <span className="pm-preview-value">{leaveReason || "-"}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="pm-leave-history">
+                  <h3>Leave History</h3>
+                  {(myLeaveRequests || []).length === 0 ? (
+                    <p className="empty-state">No leave requests found.</p>
+                  ) : (
+                    <table className="pm-table">
+                      <thead>
+                        <tr>
+                          <th>From</th>
+                          <th>To</th>
+                          <th>Reason</th>
+                          <th>Status</th>
+                          <th>Submitted</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(myLeaveRequests || [])
+                          .slice()
+                          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                          .map((leave) => (
+                            <tr key={leave.id}>
+                              <td>{leave.startDate ? new Date(leave.startDate).toLocaleDateString() : "-"}</td>
+                              <td>{leave.endDate ? new Date(leave.endDate).toLocaleDateString() : "-"}</td>
+                              <td>{leave.reason}</td>
+                              <td>{leave.status}</td>
+                              <td>{formatDateTime(new Date(leave.createdAt).toISOString())}</td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            </section>
+          ) : showActivitySection ? (
+            <section className="pm-section" style={{ gridColumn: "1 / -1" }}>
+              <h2>Log Time</h2>
+
+              <div className="pm-log-time-form-card">
+                <h3 className="pm-log-time-form-title">Submit Time Log</h3>
+                {logError && (
+                  <div className="pm-log-time-message pm-log-time-message-error">
+                    {logError}
+                  </div>
+                )}
+                {logSuccess && (
+                  <div className="pm-log-time-message pm-log-time-message-success">
+                    {logSuccess}
+                  </div>
+                )}
+                <form className="pm-log-time-form-grid" onSubmit={handleLogTimeSubmit}>
+                  <div className="pm-form-group">
+                    <label htmlFor="logTaskId">Task</label>
+                    <select
+                      id="logTaskId"
+                      className="pm-input"
+                      value={logTaskId}
+                      onChange={(e) => setLogTaskId(e.target.value)}
+                    >
+                      <option value="">Select task</option>
+                      {taskOptions.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="pm-form-group">
+                    <label htmlFor="logHours">Hours</label>
+                    <input
+                      id="logHours"
+                      className="pm-input"
+                      type="number"
+                      min={0}
+                      step={0.1}
+                      placeholder="e.g. 1.5"
+                      value={logHours}
+                      onChange={(e) => setLogHours(e.target.value)}
+                    />
+                  </div>
+                  <div className="pm-form-group">
+                    <label htmlFor="logDate">Date</label>
+                    <input
+                      id="logDate"
+                      className="pm-input"
+                      type="date"
+                      value={logDate}
+                      onChange={(e) => setLogDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="pm-form-group" style={{ gridColumn: "1 / -1" }}>
+                    <label htmlFor="logDescription">Description</label>
+                    <textarea
+                      id="logDescription"
+                      className="pm-input"
+                      rows={3}
+                      placeholder="What did you work on?"
+                      value={logDescription}
+                      onChange={(e) => setLogDescription(e.target.value)}
+                    />
+                  </div>
+                  <div className="pm-log-time-form-actions">
+                    <button type="submit" className="pm-btn pm-btn-primary">
+                      Save Log
+                    </button>
+                    <button
+                      type="button"
+                      className="pm-btn pm-btn-secondary"
+                      onClick={() => {
+                        setLogTaskId("");
+                        setLogHours("");
+                        setLogDate("");
+                        setLogDescription("");
+                        setLogError("");
+                        setLogSuccess("");
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </div>
                 </form>
               </div>
-              
-              {/* Leave Requests List */}
-              {leavesLoading ? (
-                <p style={{ textAlign: "center", color: "#666", padding: "20px" }}>Loading your leave requests...</p>
+
+              {myTimeLogs.length === 0 ? (
+                <p className="empty-state">Log activity not found.</p>
               ) : (
-                myLeaveRequests.length === 0 ? (
-                  <p style={{ textAlign: "center", color: "#666", padding: "20px" }}>
-                    You have no leave requests yet. Use the form above to submit a new request.
-                  </p>
-                ) : (
-                  <ul style={{ listStyle: "none", padding: 0 }}>
-                    {myLeaveRequests.map((leave) => (
-                      <li key={leave.id} style={{ 
-                        marginBottom: "16px", 
-                        padding: "16px", 
-                        border: "1px solid #e2e8f0", 
-                        borderRadius: "8px",
-                        backgroundColor: "#f8fafc"
-                      }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <div>
-                            <p style={{ margin: "0 0 4px 0", fontWeight: "600", color: "#2d3748" }}>
-                              {leave.days} day(s) leave
-                            </p>
-                            <p style={{ margin: "0 0 4px 0", color: "#4a5568" }}>
-                              {leave.reason}
-                            </p>
-                            <p style={{ margin: "0", fontSize: "14px", color: "#718096" }}>
-                              Status: 
-                              <span style={{ 
-                                textTransform: "capitalize", 
-                                fontWeight: "600",
-                                color: leave.status === RequestStatus.APPROVED ? "#38a169" :
-                                     leave.status === RequestStatus.REJECTED || leave.status === RequestStatus.DENIED ? "#e53e3e" :
-                                     "#dd6b20"
-                              }}>
-                                {leave.status}
-                              </span>
-                            </p>
-                          </div>
-                          {leave.status === RequestStatus.PENDING && (
-                            <button
-                              onClick={() => deleteLeaveRequest(leave.id)}
-                              style={{ 
-                                padding: "6px 12px", 
-                                background: "#e53e3e", 
-                                color: "white", 
-                                border: "none", 
-                                borderRadius: "4px",
-                                fontSize: "13px",
-                                cursor: "pointer",
-                                transition: "background-color 0.2s"
-                              }}
-                            >
-                              Delete Request
-                            </button>
+                <div className="pm-activity-grid">
+                  {[...myTimeLogs]
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .map((entry) => {
+                      const isEditing = editingLogId === entry.id;
+                      return (
+                        <div key={entry.id} className="pm-activity-cell">
+                          <div className="pm-activity-cell-header">{formatDateTime(entry.date)}</div>
+                          {isEditing ? (
+                            <div className="pm-log-time-edit-form">
+                              <div className="pm-form-group">
+                                <label htmlFor={`editHours-${entry.id}`}>Hours</label>
+                                <input
+                                  id={`editHours-${entry.id}`}
+                                  className="pm-input"
+                                  type="number"
+                                  min={0}
+                                  step={0.1}
+                                  value={editHours}
+                                  onChange={(e) => setEditHours(e.target.value)}
+                                />
+                              </div>
+                              <div className="pm-form-group">
+                                <label htmlFor={`editDate-${entry.id}`}>Date</label>
+                                <input
+                                  id={`editDate-${entry.id}`}
+                                  className="pm-input"
+                                  type="date"
+                                  value={editDate}
+                                  onChange={(e) => setEditDate(e.target.value)}
+                                />
+                              </div>
+                              <div className="pm-form-group" style={{ gridColumn: "1 / -1" }}>
+                                <label htmlFor={`editDesc-${entry.id}`}>Description</label>
+                                <textarea
+                                  id={`editDesc-${entry.id}`}
+                                  className="pm-input"
+                                  rows={3}
+                                  value={editDescription}
+                                  onChange={(e) => setEditDescription(e.target.value)}
+                                />
+                              </div>
+                              <div className="pm-log-time-form-actions">
+                                <button
+                                  type="button"
+                                  className="pm-btn pm-btn-primary"
+                                  onClick={async () => {
+                                    if (!editDescription.trim()) {
+                                      setEditMessage("Description is required.");
+                                      return;
+                                    }
+                                    await updateTimeLog({
+                                      ...entry,
+                                      hours: Number(editHours),
+                                      date: new Date(editDate).toISOString(),
+                                      description: editDescription.trim(),
+                                    });
+                                    setEditingLogId(null);
+                                    setEditMessage("");
+                                  }}
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  type="button"
+                                  className="pm-btn pm-btn-secondary"
+                                  onClick={() => {
+                                    setEditingLogId(null);
+                                    setEditMessage("");
+                                  }}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="pm-activity-cell-mode">{entry.event?.replace("_", " ") ?? "activity"}</div>
+                              <div className="pm-activity-cell-body">{entry.taskTitle || "Session event"}</div>
+                              <div className="pm-activity-cell-meta">
+                                {!!entry.hours && <span className="pm-activity-chip">{entry.hours} hr(s)</span>}
+                                {!!entry.taskId && <span className="pm-activity-chip">#{entry.taskId}</span>}
+                              </div>
+                              {!!entry.description && (
+                                <div className="pm-activity-cell-desc">{entry.description}</div>
+                              )}
+                              <div className="pm-actions">
+                                <button
+                                  className="pm-btn pm-btn-ghost"
+                                  onClick={() => {
+                                    setEditingLogId(entry.id);
+                                    setEditHours(String(entry.hours ?? ""));
+                                    setEditDate(entry.date?.slice(0, 10) ?? "");
+                                    setEditDescription(entry.description ?? "");
+                                    setEditMessage("");
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  className="pm-btn pm-btn-danger"
+                                  onClick={async () => {
+                                    if (window.confirm("Delete this log entry?")) {
+                                      await deleteTimeLog(entry.id);
+                                    }
+                                  }}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </>
                           )}
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+              {editMessage && (
+                <div className="pm-log-time-message pm-log-time-message-error" style={{ marginTop: 12 }}>
+                  {editMessage}
+                </div>
+              )}
+            </section>
+          ) : (
+            <>
+              <section className="pm-section">
+                <h2>Pending Tasks</h2>
+                {pendingTasks.length === 0 ? (
+                  <p className="empty-state">No pending tasks.</p>
+                ) : (
+                  <ul className="task-list">
+                    {pendingTasks.map((t) => renderTaskCard(t, true))}
+                  </ul>
+                )}
+              </section>
+
+              <section className="pm-section">
+                <h2>Done Tasks</h2>
+                {doneTasks.length === 0 ? (
+                  <p className="empty-state">No completed tasks yet.</p>
+                ) : (
+                  <ul className="task-list">
+                    {doneTasks.map((t) => renderTaskCard(t, false))}
+                  </ul>
+                )}
+              </section>
+
+              {deletedTasks.length > 0 && (
+                <section className="pm-section" style={{ gridColumn: "1 / -1" }}>
+                  <h2>Trash</h2>
+                  <ul className="task-list">
+                    {deletedTasks.map((t) => (
+                      <li key={t.id} className="task-card task-card-trash">
+                        <div className="task-card-info">
+              <h3>
+                <span style={{ color: "#ffffff", fontWeight: 700 }}>Task: </span>
+                <strong>{t.title}</strong>
+              </h3>
+                          {t.description && <p className="task-card-desc">{t.description}</p>}
+                          <p>Project: <strong>{projectMap.get(t.projectId) || t.projectId}</strong></p>
+                          <p>Status: <span className={`status ${t.status.toLowerCase().replace(/\s+/g, "-")}`}>{t.status}</span></p>
+                          <p className="task-card-meta">Deleted: {formatDateTime(t.deletedAt || undefined)}</p>
+                        </div>
+                        <div className="task-card-actions">
+                          <button
+                            className="task-btn restore"
+                            onClick={() => handleRestore(t.id)}
+                          >
+                            Restore
+                          </button>
                         </div>
                       </li>
                     ))}
                   </ul>
-                )
+                </section>
               )}
-            </section>
+            </>
           )}
         </div>
       </main>
+
+      {activeCommentTaskId != null && (() => {
+        const task = tasks.find((t) => t.id === activeCommentTaskId);
+        if (!task) return null;
+        return (
+          <CommentDialog
+            task={{ id: String(task.id), title: task.title, comments: task.comments ?? [] }}
+            onClose={() => setActiveCommentTaskId(null)}
+            onAddComment={(text) => handleAddComment(task.id, text)}
+          />
+        );
+      })()}
     </div>
   );
 };

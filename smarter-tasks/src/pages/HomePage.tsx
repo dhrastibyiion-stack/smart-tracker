@@ -1,67 +1,88 @@
-import React from "react";
+import React, { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/auth";
+
 import Header from "../components/Header";
 
+import "../home-hero.css";
+
+const roleToRoute: Record<string, string> = {
+  admin: "/admin-dashboard",
+  projectManager: "/pm-dashboard",
+  dev: "/dev-dashboard",
+};
+
 const HomePage: React.FC = () => {
+  const navigate = useNavigate();
+  const { user, role } = useAuth();
+
+  useEffect(() => {
+    if (user && role) {
+      const dashboardRoute = roleToRoute[role] || "/dev-dashboard";
+      navigate(dashboardRoute, { replace: true });
+    }
+  }, [user, role, navigate]);
+
   return (
     <div className="home-light">
-      <Header />
+      <Header showSignUp={false} />
 
-      <div className="home-page">
-        {/* Hero Section */}
+      {/* HERO */}
+      <div className="home-hero-wrap">
         <div className="home-hero">
-          <h1>Smarter Tasks</h1>
-          <p>
-            Manage your pending and completed tasks in one place. Also includes
-            a React data-fetching playground.
-          </p>
-        </div>
+          <div className="home-hero-text">
+            <div className="home-hero-badge">
+              <span className="home-hero-badge-dot" />
+              Graduation Final Year Project
+            </div>
 
-        <section>
-          <div className="home-content">
-            <div className="home-left">
-              <h2>Smarter Task is used for:</h2>
-              <ul className="feature-list">
-                <li>Managing pending and completed tasks</li>
-                <li>Tracking project progress</li>
-                <li>Team collaboration and communication</li>
-                <li>React data-fetching playground</li>
-                <li>Admin dashboard for oversight</li>
-                <li>Project manager dashboard</li>
-                <li>Developer dashboard</li>
-              </ul>
+            <h1 className="home-hero-title">Smarter Tasks</h1>
+            <p className="home-hero-subtitle">
+              Manage pending & completed tasks in one place—with role-based
+              dashboards for Admin, Project Manager, and Developer.
+            </p>
+
+            <div className="home-hero-actions">
+              <button
+                type="button"
+                className="home-btn home-btn-primary"
+                onClick={() => navigate("/signin")}
+              >
+                Get started
+                <span aria-hidden>→</span>
+              </button>
+            </div>
+
+            <div className="home-hero-stats">
+              <div className="home-stat">
+                <strong>Tasks</strong>
+                <span>Pending & completed tracking</span>
+              </div>
+              <div className="home-stat">
+                <strong>Projects</strong>
+                <span>Progress by role</span>
+              </div>
+              <div className="home-stat">
+                <strong>Collab</strong>
+                <span>Communication & oversight</span>
+              </div>
             </div>
           </div>
-        </section>
 
-        <section>
-          <h2>About Smarter Tasks</h2>
-          <p>
-            Smarter Tasks is a comprehensive task management application designed
-            to help teams stay organized and productive. With intuitive interfaces
-            for different roles, everyone can focus on what matters most.
-          </p>
-          <p>
-            After logging in, users gain access to specialized dashboards based on
-            their role: Admin, Project Manager, or Developer, each providing
-            tailored views and controls.
-          </p>
-        </section>
+          <div className="home-feature-grid">
+            <div className="home-feature">
+              <h3>One dashboard for everything</h3>
+              <p>Pending & completed tasks with a clean, consistent UI.</p>
+            </div>
+            <div className="home-feature">
+              <h3>Role-based views</h3>
+              <p>Admin, Project Manager, and Developer dashboards tailored to you.</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
 export default HomePage;
-
-
-
-
-
-
-
-
-
-
-
-
-

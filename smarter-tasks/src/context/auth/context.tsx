@@ -5,7 +5,7 @@ import { normalizeRole } from "../../config/constants";
 
 const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem("authToken"));
-  const [user, setUser] = useState<{ name: string; username: string } | null>(() => {
+  const [user, setUser] = useState<{ name: string; username: string; email?: string; companyId?: string } | null>(() => {
     const stored = localStorage.getItem("user");
     return stored ? JSON.parse(stored) : null;
   });
@@ -14,7 +14,7 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return stored ? normalizeRole(stored) : null;
   });
 
-  const login = async (params: { token: string; user: { name: string; username: string }; role: UserRole }) => {
+  const login = async (params: { token: string; user: { name: string; username: string; email?: string; companyId?: string }; role: UserRole }) => {
     const normalizedRole = normalizeRole(params.role);
     setToken(params.token);
     setUser(params.user);

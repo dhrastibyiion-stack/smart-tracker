@@ -5,7 +5,11 @@ import { useTheme } from "../theme/ThemeContext";
 
 import "../TaskLayout.css";
 
-const Header = () => {
+ interface HeaderProps {
+  showSignUp?: boolean;
+}
+
+const Header = ({ showSignUp = true }: HeaderProps) => {
    const navigate = useNavigate();
    const { theme, toggleTheme } = useTheme();
    const { user, role } = useAuth();
@@ -14,8 +18,6 @@ const Header = () => {
     navigate("/logout", { replace: true });
   };
 
-  const isAdmin = role === "admin";
-  const isManager = role === "projectManager";
   const isLoggedIn = !!user;
 
   return (
@@ -24,8 +26,8 @@ const Header = () => {
         <div className="brand">
           <div className="brand-badge">S</div>
           <div className="brand-title">
-            <strong>Smarter Tasks</strong>
-            <span>Graduation Final Year Project</span>
+            <strong className="brand-name">Smarter Tasks</strong>
+            <span className="brand-subtitle">Graduation Final Year Project</span>
           </div>
         </div>
 
@@ -40,46 +42,6 @@ const Header = () => {
               >
                 Home
               </NavLink>
-              {(isAdmin || isManager) && (
-                <>
-                  <NavLink
-                    to="/playground"
-                    className={({ isActive }) =>
-                      isActive ? "nav-link nav-link-active" : "nav-link"
-                    }
-                  >
-                    Posts
-                  </NavLink>
-                </>
-              )}
-              <NavLink
-                to="/tasks"
-                className={({ isActive }) =>
-                  isActive ? "nav-link nav-link-active" : "nav-link"
-                }
-              >
-                Tasks
-              </NavLink>
-              {isAdmin && (
-                <>
-                  <NavLink
-                    to="/account/projects"
-                    className={({ isActive }) =>
-                      isActive ? "nav-link nav-link-active" : "nav-link"
-                    }
-                  >
-                    Projects
-                  </NavLink>
-                  <NavLink
-                    to="/account/members"
-                    className={({ isActive }) =>
-                      isActive ? "nav-link nav-link-active" : "nav-link"
-                    }
-                  >
-                    Members
-                  </NavLink>
-                </>
-              )}
               <button
                 type="button"
                 className="nav-link nav-link-button"
@@ -110,12 +72,14 @@ const Header = () => {
               >
                 Sign In
               </NavLink>
-              <NavLink
-                to="/signup"
-                className="nav-link"
-              >
-                Sign Up
-              </NavLink>
+              {showSignUp && (
+                <NavLink
+                  to="/signup"
+                  className="nav-link"
+                >
+                  Sign Up
+                </NavLink>
+              )}
               <button
                 type="button"
                 className="nav-link nav-link-button"

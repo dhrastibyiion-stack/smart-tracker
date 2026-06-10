@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useReducer } from "react";
 
 import { MembersContext } from "./MembersContext";
 import { reducer, type Action } from "./reducer";
-import { createMemberRequest, deleteMemberRequest, refreshMembers } from "./actions";
+import { createMemberRequest, deleteMemberRequest, updateMemberRequest, refreshMembers } from "./actions";
 
 import type { MembersContextValue } from "./MembersContext";
+import type { UserRole } from "../../config/constants";
 
 type Dispatch = (action: Action) => void;
 
@@ -12,8 +13,10 @@ export type { Member } from "./MembersContext";
 
 export const MembersProvider = ({
   children,
+  createdBy,
 }: {
   children: React.ReactNode;
+  createdBy?: string;
 }) => {
   const [state, dispatchBase] = useReducer(reducer, {
     members: [],
@@ -24,11 +27,11 @@ export const MembersProvider = ({
   const dispatch = dispatchBase as Dispatch;
 
   const refresh = useCallback(async () => {
-    await refreshMembers({ dispatch });
-  }, [dispatch]);
+    await refreshMembers({ dispatch, createdBy });
+  }, [dispatch, createdBy]);
 
   const createMember = useCallback(
-    async (data: { name: string; email: string; password: string }) => {
+    async (data: { name: string; email: string; role: UserRole; companyId: string; password: string; createdBy: string }) => {
       await createMemberRequest({
         ...data,
         dispatch,
@@ -38,9 +41,21 @@ export const MembersProvider = ({
     [dispatch, refresh]
   );
 
-  const deleteMember = useCallback(
+const deleteMember = useCallback(
     async (id: number) => {
       await deleteMemberRequest({
+        id,
+        dispatch,
+        refresh,
+      });
+    },
+    [dispatch, refresh]
+  );
+
+  const updateMember = useCallback(
+    async (id: number, data: { name: string; email: string; role: UserRole }) => {
+      await updateMemberRequest({
+        ...data,
         id,
         dispatch,
         refresh,
@@ -61,6 +76,7 @@ export const MembersProvider = ({
       refreshMembers: refresh,
       createMember,
       deleteMember,
+      updateMember,
     }),
     [createMember, deleteMember, refresh, state.error, state.isLoading, state.members]
   );

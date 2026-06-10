@@ -138,24 +138,25 @@
  }
 
 .auth-card {
-   background: var(--auth-blue);
+   background: #ffffff;
    border-radius: 16px;
    box-shadow: var(--shadow);
    padding: 40px;
    max-width: 400px;
    width: 100%;
    text-align: center;
+   border: 1px solid var(--border);
  }
 
-.auth-title {
+ .auth-title {
    font-size: 28px;
    font-weight: 600;
-   color: var(--auth-white);
+   color: #000000;
    margin: 0 0 8px;
  }
 
-.auth-subtitle {
-   color: var(--auth-white);
+ .auth-subtitle {
+   color: #000000;
    margin: 0 0 24px;
    font-size: 15px;
  }
@@ -185,7 +186,7 @@
 .auth-field label {
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-h);
+  color: #000000;
   text-align: left;
 }
 
@@ -196,8 +197,42 @@
   border-radius: 10px;
   font-size: 15px;
   background: #ffffff;
-  color: var(--text);
+  color: #000000;
   transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.auth-field input::placeholder {
+  color: #000000;
+}
+
+.auth-field select {
+  width: 100%;
+  padding: 14px 16px;
+  padding-right: 40px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 15px;
+  background: #ffffff;
+  color: #000000;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23000033' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6,9 12,15 18,9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+}
+
+.auth-field input:focus,
+.auth-field select:focus {
+  outline: none;
+  border-color: #000000;
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.auth-switch {
+  margin-top: 24px;
+  color: #000000;
+  font-size: 14px;
 }
 
 .auth-field input::placeholder {
@@ -296,14 +331,14 @@
 }
 
 .home-left h2 {
-  color: var(--text-h);
+  color: #000000;
   margin-top: 0;
   margin-bottom: 16px;
   font-size: 24px;
 }
 
 .home-right h2 {
-  color: var(--text-h);
+  color: #000000;
   margin-top: 0;
   margin-bottom: 16px;
   font-size: 24px;
@@ -318,7 +353,7 @@
 .feature-list li {
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
-  color: var(--text);
+  color: #000000;
   font-size: 16px;
   display: flex;
   align-items: center;
@@ -353,6 +388,23 @@
   border-radius: 12px;
   box-shadow: var(--shadow);
   padding: 24px;
+}
+
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
 }
 
 /* Ensure body background white */
@@ -481,6 +533,34 @@ body {
   background: #f8fafc;
 }
 
+.pm-main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.pm-content {
+  padding-right: 8px;
+}
+
+.pm-header {
+  padding: 24px 0;
+  margin-bottom: 24px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.pm-header h1 {
+  margin: 0 0 8px;
+  color: #1a202c;
+}
+
+.pm-header p {
+  margin: 0;
+  color: #718096;
+  font-size: 14px;
+}
+
+
 .pm-sidebar {
   width: 240px;
   background: #16171d;
@@ -531,24 +611,36 @@ body {
   color: white;
 }
 
-.pm-main {
-  flex: 1;
-  padding: 24px 32px;
-  overflow-y: auto;
+.pm-user-info {
+  margin-top: auto;
+  padding: 16px 8px;
+  border-top: 1px solid #2e303a;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.pm-header {
-  margin-bottom: 24px;
+.pm-user-info span {
+  font-size: 13px;
+  color: #d1d5e0;
 }
 
-.pm-header h1 {
-  margin: 0 0 8px;
-  color: #2f855a;
+.pm-user-info strong {
+  color: #fff;
+  font-weight: 600;
 }
 
-.pm-section h2 {
-  margin: 0 0 16px;
-  color: #08060d;
+.pm-role-badge {
+  display: inline-block;
+  background: rgba(170, 59, 255, 0.15);
+  color: var(--accent);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  width: fit-content;
 }
 
 .pm-logout {

@@ -1,8 +1,9 @@
-# Smart Tracker - TODO
+# TODO - Home hero layout upgrade
 
-- [ ] Add requested Admin protected route in `src/App.tsx` using React Router (`BrowserRouter`, `Routes`, `Route`, `Navigate`) and AuthProvider/ProtectedRoute.
-- [ ] Map `/login` to the existing `Signin` page (or decide redirect strategy).
-- [ ] Add catch-all redirect to login.
-- [ ] Remove/avoid conflicts with existing `RouterProvider` + `src/router.tsx` (either replace or integrate).
-- [ ] Run `npm run dev` / `npm run build` to verify compilation and routing.
+- [ ] Inspect existing HomePage hero markup and existing CSS (site.css / index.css / other relevant files)
+- [ ] Design a new hero layout: headline + subtext + CTA buttons + hero card + feature grid
+- [ ] Update `src/pages/HomePage.tsx` to use semantic sections and richer hero markup
+- [ ] Add/extend CSS for hero: `src/home-hero.css` (preferred) and wire it in
+- [ ] Ensure layout is responsive and works in light/dark mode using existing CSS variables
+- [ ] Run build/dev command to ensure no TypeScript/format issues
 

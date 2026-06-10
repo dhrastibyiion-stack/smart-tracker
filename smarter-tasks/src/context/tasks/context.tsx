@@ -1,12 +1,17 @@
-﻿import { useCallback, useEffect, useMemo, useReducer } from "react";
+﻿import { useAuth } from "../../context/auth";
+import { STORAGE_KEYS } from "../../config/constants";
+import { useCallback, useEffect, useMemo, useReducer } from "react";
 
 import { TasksContext } from "./TasksContext";
-import { reducer, type Action } from "./reducer";
+import { reducer, type Action, type Task } from "./reducer";
 import {
   createTaskRequest,
   deleteTaskRequest,
   refreshTasks,
   updateTaskStatusRequest,
+  updateTaskRequest,
+  restoreTaskRequest,
+  updateTaskCommentsRequest,
 } from "./actions";
 
 import type { TasksContextValue } from "./TasksContext";
@@ -18,8 +23,10 @@ export const TasksProvider = ({
 }: {
   children: React.ReactNode;
 }) => {
+  const { user } = useAuth();
   const [state, dispatchBase] = useReducer(reducer, {
     tasks: [],
+    companyId: null,
     isLoading: false,
     error: null,
   });
@@ -27,18 +34,18 @@ export const TasksProvider = ({
   const dispatch = dispatchBase as Dispatch;
 
   const refresh = useCallback(async () => {
-    await refreshTasks({ dispatch });
-  }, [dispatch]);
+    await refreshTasks({ dispatch, companyId: user?.companyId ?? null });
+  }, [dispatch, user?.companyId]);
 
   const createTask = useCallback(
-    async (data: { title: string; projectId: string; assignedTo?: number }) => {
+    async (data: { title: string; projectId: string; assignedTo?: number; description?: string; date?: string; creatorId?: number; creatorName?: string; companyId?: string }) => {
       await createTaskRequest({
-        data,
+        data: { ...data, companyId: data.companyId ?? user?.companyId },
         dispatch,
         refresh,
       });
     },
-    [dispatch, refresh]
+    [dispatch, refresh, user?.companyId]
   );
 
   const updateTaskStatus = useCallback(
@@ -53,10 +60,51 @@ export const TasksProvider = ({
     [dispatch, refresh]
   );
 
-  const deleteTask = useCallback(
+const deleteTask = useCallback(
     async (id: number) => {
       await deleteTaskRequest({
         id,
+        dispatch,
+        refresh,
+      });
+    },
+    [dispatch, refresh]
+  );
+
+  const restoreTask = useCallback(
+    async (id: number) => {
+      await restoreTaskRequest({
+        id,
+        dispatch,
+        refresh,
+      });
+    },
+    [dispatch, refresh]
+  );
+
+  const getDeletedTasks = useCallback(() => {
+    const stored = localStorage.getItem(STORAGE_KEYS.TASKS);
+    const tasks: Task[] = stored ? JSON.parse(stored) : [];
+    return tasks.filter((t) => t.deletedAt);
+  }, []);
+
+  const updateTask = useCallback(
+    async (id: number, data: { title: string; description?: string; projectId: string; assignedTo?: number; date?: string }) => {
+      await updateTaskRequest({
+        ...data,
+        id,
+        dispatch,
+        refresh,
+      });
+    },
+    [dispatch, refresh]
+  );
+
+  const updateTaskComments = useCallback(
+    async (id: number, comments: string[]) => {
+      await updateTaskCommentsRequest({
+        id,
+        comments,
         dispatch,
         refresh,
       });
@@ -76,9 +124,13 @@ export const TasksProvider = ({
       refreshTasks: refresh,
       createTask,
       updateTaskStatus,
+      updateTask,
+      updateTaskComments,
       deleteTask,
+      restoreTask,
+      getDeletedTasks,
     }),
-    [createTask, deleteTask, refresh, state.error, state.isLoading, state.tasks, updateTaskStatus]
+    [createTask, deleteTask, getDeletedTasks, refresh, restoreTask, state.error, state.isLoading, state.tasks, updateTaskStatus, updateTaskComments]
   );
 
   return <TasksContext.Provider value={value}>{children}</TasksContext.Provider>;

@@ -6,6 +6,7 @@ import {
   createLeaveRequest,
   deleteLeaveRequest,
   refreshLeaveRequests,
+  updateLeaveRequest,
   updateLeaveRequestStatus,
 } from "./actions";
 
@@ -28,8 +29,8 @@ export const LeaveRequestsProvider = ({
 
   const dispatch = dispatchBase as Dispatch;
 
-  const refresh = useCallback(async () => {
-    await refreshLeaveRequests({ dispatch });
+  const refresh = useCallback(async (companyId?: string | null) => {
+    await refreshLeaveRequests({ dispatch, companyId });
   }, [dispatch]);
 
   const create = useCallback(
@@ -38,6 +39,9 @@ export const LeaveRequestsProvider = ({
       requesterName: string;
       days: number;
       reason: string;
+      startDate: string;
+      endDate: string;
+      companyId?: string;
     }) => {
       await createLeaveRequest({
         data,
@@ -53,6 +57,18 @@ export const LeaveRequestsProvider = ({
       await updateLeaveRequestStatus({
         id,
         status,
+        dispatch,
+        refresh,
+      });
+    },
+    [dispatch, refresh]
+  );
+
+  const update = useCallback(
+    async (id: number, data: { days: number; reason: string; startDate: string; endDate: string }) => {
+      await updateLeaveRequest({
+        id,
+        data,
         dispatch,
         refresh,
       });
@@ -82,6 +98,7 @@ export const LeaveRequestsProvider = ({
       error: state.error,
       refreshLeaveRequests: refresh,
       createLeaveRequest: create,
+      updateLeaveRequest: update,
       updateLeaveRequestStatus: updateStatus,
       deleteLeaveRequest: deleteLeave,
     }),
@@ -92,6 +109,7 @@ export const LeaveRequestsProvider = ({
       state.error,
       state.isLoading,
       state.leaveRequests,
+      update,
       updateStatus,
     ]
   );

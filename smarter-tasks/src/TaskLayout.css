@@ -1,27 +1,18 @@
-.task-layout{
-  min-height:100vh;
-  display:flex;
-  flex-direction:column;
+.brand-title {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
 }
 
-.navbar{
-  position:sticky;
-  top:0;
-  z-index:10;
-  background:rgba(0, 102, 255, 0.1); /* Light blue */
-  border-bottom:1px solid var(--border);
+.brand-name {
+  font-size: 20px;
+  letter-spacing: -0.3px;
 }
 
-/* Force navbar to be light on auth/home screens (default requirement) */
-.navbar{
-  background: rgba(0, 102, 255, 0.2); /* Very light blue */
+.brand-subtitle {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.8;
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
 }
-
-/* Dark mode backdrop */
-@media (prefers-color-scheme: dark){
-  .navbar{background:rgba(0, 0, 51, 0.65); /* Dark blue */ }
-  .panel{background:rgba(22,23,29,0.55);}
-}
-
-
-

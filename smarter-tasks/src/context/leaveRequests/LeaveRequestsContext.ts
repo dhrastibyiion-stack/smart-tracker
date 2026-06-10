@@ -9,6 +9,9 @@ export type LeaveRequest = {
   reason: string;
   status: RequestStatus;
   createdAt: string;
+  startDate: string;
+  endDate: string;
+  companyId?: string;
 };
 
 export type LeaveRequestsContextValue = {
@@ -21,6 +24,15 @@ export type LeaveRequestsContextValue = {
     requesterName: string;
     days: number;
     reason: string;
+    startDate: string;
+    endDate: string;
+    companyId?: string;
+  }) => Promise<void>;
+  updateLeaveRequest: (id: number, data: {
+    days: number;
+    reason: string;
+    startDate: string;
+    endDate: string;
   }) => Promise<void>;
   updateLeaveRequestStatus: (id: number, status: RequestStatus) => Promise<void>;
   deleteLeaveRequest: (id: number) => Promise<void>;

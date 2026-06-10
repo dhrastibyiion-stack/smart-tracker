@@ -10,6 +10,8 @@ type TaskProp = {
   onToggleStatus: () => void;
   status: "pending" | "done";
   canDelete: boolean;
+  comments: string[];
+  onOpenComment: () => void;
 };
 
 const TaskFC = (props: TaskProp) => {
@@ -42,6 +44,13 @@ const TaskFC = (props: TaskProp) => {
             Delete
           </button>
         )}
+        <button
+          type="button"
+          className="commentButton"
+          onClick={props.onOpenComment}
+        >
+          Comment
+        </button>
       </div>
     </div>
   );
@@ -50,8 +59,3 @@ const TaskFC = (props: TaskProp) => {
 const Task = TaskFC;
 
 export default Task;
-
-
-
-
-

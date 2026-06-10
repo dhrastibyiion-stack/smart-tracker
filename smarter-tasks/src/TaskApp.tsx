@@ -2,11 +2,13 @@
 
 import TaskForm from "./Taskform";
 import TaskList from "./Tasklist";
+import CommentDialog from "./CommentDialog";
 
 import { useLocalStorage } from "./hooks/useLocalStorage";
 import { useAuth, type UserRole } from "./context/auth";
 
 import "./TaskLayout.css";
+import { Link } from "react-router-dom";
 
 interface TaskAppState {
   pendingTasks: TaskItem[];
@@ -24,6 +26,8 @@ const TaskAppFC = () => {
 
   const { role } = useAuth();
 
+  const [activeCommentTaskId, setActiveCommentTaskId] = React.useState<string | null>(null);
+
   const canCreateTask = (r: UserRole) => {
     return r === "admin" || r === "projectManager";
   };
@@ -32,6 +36,7 @@ const TaskAppFC = () => {
     const taskWithId: TaskItem = {
       id: crypto.randomUUID(),
       ...task,
+      comments: [],
     };
 
     setTaskAppState((state) => {
@@ -76,6 +81,31 @@ const TaskAppFC = () => {
     });
   };
 
+  const addComment = (taskId: string, commentText: string) => {
+    setTaskAppState((state) => {
+      const addTo = (tasks: TaskItem[]) =>
+        tasks.map((t) =>
+          t.id === taskId
+            ? { ...t, comments: [...(t.comments ?? []), commentText] }
+            : t
+        );
+
+      return {
+        ...state,
+        pendingTasks: addTo(state.pendingTasks),
+        doneTasks: addTo(state.doneTasks),
+      };
+    });
+  };
+
+  const activeTaskForComment =
+    activeCommentTaskId !== null
+      ? [
+          ...taskAppState.pendingTasks,
+          ...taskAppState.doneTasks,
+        ].find((t) => t.id === activeCommentTaskId) ?? null
+      : null;
+
   return (
     <div className="task-layout">
       <header className="navbar">
@@ -91,6 +121,7 @@ const TaskAppFC = () => {
           <div className="nav-right">
             <span className="pill">Pending: {taskAppState.pendingTasks.length}</span>
             <span className="pill">Done: {taskAppState.doneTasks.length}</span>
+            <Link className="nav-link" to="/trash">Trash</Link>
           </div>
         </div>
       </header>
@@ -123,6 +154,7 @@ const TaskAppFC = () => {
                   status="pending"
                   onDeleteTask={deleteTask}
                   onToggleStatus={(id) => updateTaskStatus(id, "pending", "done")}
+                  onOpenComment={(id) => setActiveCommentTaskId(id)}
                   role={role as UserRole}
                 />
               </div>
@@ -148,6 +180,7 @@ const TaskAppFC = () => {
                   status="done"
                   onDeleteTask={deleteTask}
                   onToggleStatus={(id) => updateTaskStatus(id, "done", "pending")}
+                  onOpenComment={(id) => setActiveCommentTaskId(id)}
                   role={role as UserRole}
                 />
               </div>
@@ -155,6 +188,16 @@ const TaskAppFC = () => {
           </div>
         </section>
       </main>
+
+      {activeTaskForComment && (
+        <CommentDialog
+          task={activeTaskForComment}
+          onClose={() => setActiveCommentTaskId(null)}
+          onAddComment={(commentText) => {
+            addComment(activeTaskForComment.id, commentText);
+          }}
+        />
+      )}
     </div>
   );
 };

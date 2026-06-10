@@ -1,19 +1,27 @@
 export type Project = {
   id: number;
   name: string;
+  description?: string;
+  assignedTo?: number;
+  date?: string;
+  time?: string;
+  companyId?: string;
+  createdBy?: string;
 };
 
 type State = {
   projects: Project[];
+  companyId: string | null;
   isLoading: boolean;
   error: string | null;
 };
 
 export type Action =
   | { type: "API_CALL_START" }
-  | { type: "API_CALL_END"; payload: Project[] }
+  | { type: "API_CALL_END"; payload: { projects: Project[]; companyId?: string | null } }
   | { type: "API_CALL_ERROR"; payload: string }
-  | { type: "UPDATE_PROJECT_SUCCESS"; payload: { id: number; updates: Partial<Omit<Project, "id">> } };
+  | { type: "UPDATE_PROJECT_SUCCESS"; payload: { id: number; updates: Partial<Omit<Project, "id">> } }
+  | { type: "DELETE_PROJECT_SUCCESS"; payload: number };
 
 export const reducer = (state: State, action: Action): State => {
   switch (action.type) {
@@ -24,13 +32,19 @@ export const reducer = (state: State, action: Action): State => {
         error: null,
       };
 
-    case "API_CALL_END":
+    case "API_CALL_END": {
+      const companyId = action.payload.companyId ?? state.companyId;
+      const projects = companyId
+        ? action.payload.projects.filter((p) => p.companyId === companyId)
+        : action.payload.projects;
       return {
         ...state,
         isLoading: false,
-        projects: action.payload,
+        projects,
+        companyId,
         error: null,
       };
+    }
 
     case "API_CALL_ERROR":
       return {
@@ -48,6 +62,14 @@ export const reducer = (state: State, action: Action): State => {
             ? { ...project, ...action.payload.updates }
             : project
         ),
+        error: null,
+      };
+
+    case "DELETE_PROJECT_SUCCESS":
+      return {
+        ...state,
+        isLoading: false,
+        projects: state.projects.filter((p) => p.id !== action.payload),
         error: null,
       };
 

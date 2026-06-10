@@ -27,15 +27,6 @@ const Form: React.FC = () => {
   const [submittedPost, setSubmittedPost] = useState<StoredPost | null>(null);
   const [allPosts, setAllPosts] = useState<StoredPost[]>([]);
 
-  const loadPosts = () => {
-    try {
-      const stored = localStorage.getItem("posts");
-      setAllPosts(stored ? JSON.parse(stored) : []);
-    } catch {
-      setAllPosts([]);
-    }
-  };
-
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {

@@ -1,0 +1,32 @@
+.pm-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: #1a202c;
+  background: #edf2f7;
+}
+
+.pm-status-success {
+  background: rgba(56, 161, 105, 0.12);
+  color: #1f7a4a;
+}
+
+.pm-status-info {
+  background: rgba(99, 179, 237, 0.14);
+  color: #2b6cb0;
+}
+
+.pm-status-danger {
+  background: rgba(229, 62, 62, 0.12);
+  color: #c53030;
+}
+
+.pm-status-warning {
+  background: rgba(221, 107, 32, 0.14);
+  color: #b45309;
+}
+
