@@ -4,3 +4,28 @@
   letter-spacing: 2px;
 }
 
+.pm-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: opacity 0.2s;
+}
+
+.pm-btn-primary {
+  background: #38a169;
+  color: white;
+}
+
+.pm-btn-secondary {
+  background: #e53e3e;
+  color: white;
+}
+
+.pm-btn-reject {
+  background: #e53e3e;
+  color: white;
+}
+

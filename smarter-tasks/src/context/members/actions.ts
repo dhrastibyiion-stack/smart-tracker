@@ -1,6 +1,7 @@
 ﻿import type { Action } from "./reducer";
 import type { Member } from "./MembersContext";
 import { STORAGE_KEYS, UserRole } from "../../config/constants";
+import { getUsers, saveUsers } from "../../utils/authUtils";
 
 type Dispatch = (action: Action) => void;
 
@@ -120,6 +121,12 @@ export const updateMemberRequest = async (opts: {
       m.id === id ? { ...m, name, email, role } : m
     );
     localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(updatedMembers));
+
+    const users = getUsers();
+    const updatedUsers = users.map((u) =>
+      u.email === email ? { ...u, name, role } : u
+    );
+    saveUsers(updatedUsers);
 
     const updatedMember = updatedMembers.find((m) => m.id === id)!;
     dispatch({ type: "UPDATE_MEMBER_SUCCESS", payload: updatedMember });

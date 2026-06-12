@@ -17,12 +17,21 @@ const ProjectManagerDashboard = () => {
   const { tasks, isLoading: tasksLoading, createTask, updateTaskStatus, deleteTask } = useTasks();
   const { projects, isLoading: projectsLoading, updateProject } = useProjects();
   const { members, isLoading: membersLoading } = useMembers();
-  const { leaveRequests, updateLeaveRequestStatus } = useLeaveRequests();
+  const { leaveRequests, updateLeaveRequest, deleteLeaveRequest, updateLeaveRequestStatus } = useLeaveRequests();
   const { timeLogs, isLoading: timeLoading } = useTimeTracking();
   const navigate = useNavigate();
   const canAccess = role === "projectManager" || role === "admin";
 
   const isProjectManager = role === "projectManager";
+
+      const selfLeaveDays = useMemo(() => {
+    const from = selfLeave.startDate;
+    const to = selfLeave.endDate;
+    if (!from || !to) return 0;
+    const diffMs = new Date(to).getTime() - new Date(from).getTime();
+    if (diffMs < 0) return 0;
+    return Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+  }, [selfLeave.startDate, selfLeave.endDate]);
 
   const currentMemberId = members.find(
     (m) => m.email === user?.username || m.name === user?.name
@@ -35,9 +44,18 @@ const ProjectManagerDashboard = () => {
   const myProjects = projects.filter((p) => p.assignedTo === currentMemberId && (p.companyId === user?.companyId || !p.companyId));
   const myTasks = tasks.filter((t) => myProjects.some((p) => String(p.id) === String(t.projectId)) && (t.companyId === user?.companyId || !t.companyId));
 
+  const pendingLeaves = useMemo(() => leaveRequests.filter((l) => l.status === RequestStatus.PENDING && (l.companyId === user?.companyId || !l.companyId)), [leaveRequests, user?.companyId]);
+
+  const visibleLeaveRequests = useMemo(
+    () => (user?.companyId ? leaveRequests.filter((l) => l.companyId === user?.companyId || !l.companyId) : leaveRequests),
+    [leaveRequests, user?.companyId]
+  );
+
   const [activeSection, setActiveSection] = useState<"projects" | "tasks" | "members" | "leaves" | "developer-work">("projects");
 
   const [newTask, setNewTask] = useState({ title: "", projectId: "", assignedTo: "" });
+  const [editingLeaveId, setEditingLeaveId] = useState<number | null>(null);
+  const [editingLeave, setEditingLeave] = useState({ requesterName: "", leaveType: "Casual" as "Casual" | "Sick" | "UnPaid", days: 1, reason: "", startDate: "", endDate: "" });
 
   const memberMap = new Map<number, string>();
   members.forEach((m) => memberMap.set(m.id, m.name));
@@ -75,6 +93,38 @@ const ProjectManagerDashboard = () => {
     setNewTask({ title: "", projectId: "", assignedTo: "" });
   };
 
+  const handleCreateLeave = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLeave.requesterName.trim() || !newLeave.reason.trim() || !newLeave.startDate || !newLeave.endDate) return;
+    createLeaveRequest({
+      requesterId: newLeave.requesterId,
+      requesterName: newLeave.requesterName.trim(),
+      leaveType: newLeave.leaveType,
+      days: newLeave.days,
+      reason: newLeave.reason.trim(),
+      startDate: newLeave.startDate,
+      endDate: newLeave.endDate,
+      companyId: user?.companyId,
+    });
+    setNewLeave({ requesterName: "", requesterId: 0, leaveType: "Casual", days: 1, reason: "", startDate: "", endDate: "" });
+  };
+
+  const handleSubmitSelfLeave = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selfLeave.reason.trim() || !selfLeave.startDate || !selfLeave.endDate || !user?.name || !user?.companyId) return;
+    createLeaveRequest({
+      requesterId: currentMemberId,
+      requesterName: user.name,
+      leaveType: selfLeave.leaveType,
+      days: selfLeave.days,
+      reason: selfLeave.reason.trim(),
+      startDate: selfLeave.startDate,
+      endDate: selfLeave.endDate,
+      companyId: user.companyId,
+    });
+    setSelfLeave({ leaveType: "Casual", days: 1, reason: "", startDate: "", endDate: "" });
+  };
+
   const startEditProject = (project: { id: number; name: string }) => {
     setEditingProjectId(project.id);
     setEditingProjectName(project.name);
@@ -97,6 +147,49 @@ const ProjectManagerDashboard = () => {
 
   const handleLeaveStatus = (id: number, status: RequestStatus) => {
     updateLeaveRequestStatus(id, status);
+  };
+
+  const computeLeaveDays = (startDate: string, endDate: string) => {
+    if (!startDate || !endDate) return 1;
+    const diffMs = new Date(endDate).getTime() - new Date(startDate).getTime();
+    if (diffMs < 0) return 1;
+    return Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+  };
+
+  const startEditLeave = (leave: {
+    id: number;
+    requesterName: string;
+    leaveType: "Casual" | "Sick" | "UnPaid";
+    days: number;
+    reason: string;
+    startDate: string;
+    endDate: string;
+  }) => {
+    setEditingLeaveId(leave.id);
+    setEditingLeave({
+      requesterName: leave.requesterName,
+      leaveType: leave.leaveType,
+      days: leave.days,
+      reason: leave.reason,
+      startDate: leave.startDate,
+      endDate: leave.endDate,
+    });
+  };
+
+  const cancelEditLeave = () => {
+    setEditingLeaveId(null);
+    setEditingLeave({ requesterName: "", leaveType: "Casual", days: 1, reason: "", startDate: "", endDate: "" });
+  };
+
+  const saveEditLeave = async (id: number) => {
+    if (!editingLeave.requesterName.trim() || !editingLeave.reason.trim() || !editingLeave.startDate || !editingLeave.endDate) return;
+    await updateLeaveRequest(id, {
+      days: computeLeaveDays(editingLeave.startDate, editingLeave.endDate),
+      reason: editingLeave.reason.trim(),
+      startDate: editingLeave.startDate,
+      endDate: editingLeave.endDate,
+    });
+    cancelEditLeave();
   };
 
   return (
@@ -449,69 +542,78 @@ const ProjectManagerDashboard = () => {
           )}
 
           {activeSection === "leaves" && (
-               <section className="pm-section" style={{ gridColumn: "1 / -1" }}>
+            <section className="pm-section" style={{ gridColumn: "1/-1" }}>
               <h2>📝 Leave Requests</h2>
-              {leaveRequests.length === 0 ? (
+              {visibleLeaveRequests.length === 0 ? (
                 <p style={{ textAlign: "center", color: "#666", padding: "20px" }}>No leave requests found.</p>
               ) : (
                 <table className="pm-table">
                   <thead>
                     <tr>
                       <th>Requester</th>
+                      <th>Type</th>
                       <th>Duration</th>
                       <th>Reason</th>
                       <th>Status</th>
-                      <th style={{ width: "140px" }}>Actions</th>
+                      <th style={{ width: "180px" }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {leaveRequests.map((leave) => (
-                      <tr key={leave.id}>
-                        <td>{leave.requesterName}</td>
-                        <td>
-                          <span style={{ fontSize: "12px" }}>
-                            {leave.startDate ? new Date(leave.startDate).toLocaleDateString() : "-"} → {leave.endDate ? new Date(leave.endDate).toLocaleDateString() : "-"}
-                          </span>
-                          <br />
-                          <span style={{ color: "#718096", fontSize: "12px" }}>{leave.days} day(s)</span>
-                        </td>
-                        <td>{leave.reason}</td>
-                        <td>
-                          <span
-                            style={{
-                              padding: "4px 12px",
-                              borderRadius: "9999px",
-                              fontSize: "12px",
-                              fontWeight: "600",
-                              background: leave.status === RequestStatus.APPROVED ? "#c6f6d5" : leave.status === RequestStatus.REJECTED || leave.status === RequestStatus.DENIED ? "#fed7d7" : "#feebc8",
-                              color: leave.status === RequestStatus.APPROVED ? "#276749" : leave.status === RequestStatus.REJECTED || leave.status === RequestStatus.DENIED ? "#c53030" : "#c05621"
-                            }}
-                          >
-                            {leave.status}
-                          </span>
-                        </td>
-                        <td>
-                          {leave.status === RequestStatus.PENDING ? (
-                            <div className="pm-actions">
-                              <button
-                                className="pm-btn pm-btn-primary"
-                                onClick={() => handleLeaveStatus(leave.id, RequestStatus.APPROVED)}
-                              >
-                                Approve
-                              </button>
-                              <button
-                                className="pm-btn pm-btn-secondary"
-                                onClick={() => handleLeaveStatus(leave.id, RequestStatus.REJECTED)}
-                              >
-                                Reject
-                              </button>
+                    {visibleLeaveRequests.map((leave) => {
+                      const isSelf = currentMemberId != null && leave.requesterId === currentMemberId;
+                      const isEditing = editingLeaveId === leave.id;
+                      return (
+                        <tr key={leave.id}>
+                          <td>
+                            {isEditing ? <input style={{ padding: "6px 8px", minWidth: "120px" }} value={editingLeave.requesterName} onChange={(e) => setEditingLeave({ ...editingLeave, requesterName: e.target.value })} /> : <>{leave.requesterName}{isSelf ? " (You)" : ""}</>}
+                          </td>
+                          <td>
+                            {isEditing ? <select style={{ padding: "6px 8px" }} value={editingLeave.leaveType} onChange={(e) => setEditingLeave({ ...editingLeave, leaveType: e.target.value as "Casual" | "Sick" | "UnPaid" })}><option value="Casual">Casual</option><option value="Sick">Sick</option><option value="UnPaid">UnPaid</option></select> : leave.leaveType}
+                          </td>
+                          <td>
+                            <span style={{ fontSize: "12px" }}>
+                              {isEditing ? <><input type="date" style={{ padding: "6px 8px", minWidth: "120px" }} value={editingLeave.startDate} onChange={(e) => setEditingLeave({ ...editingLeave, startDate: e.target.value })} /> <span style={{ padding: "0 4px" }}>→</span> <input type="date" style={{ padding: "6px 8px", minWidth: "120px" }} value={editingLeave.endDate} onChange={(e) => setEditingLeave({ ...editingLeave, endDate: e.target.value })} /></> : <><span style={{ fontSize: "12px" }}>{leave.startDate ? new Date(leave.startDate).toLocaleDateString() : "-"} → {leave.endDate ? new Date(leave.endDate).toLocaleDateString() : "-"}</span><br /><span style={{ color: "#718096", fontSize: "12px" }}>{leave.days} day(s)</span></>}
+                            </span>
+                          </td>
+                          <td>{isEditing ? <textarea style={{ padding: "6px 8px", minWidth: "160px" }} value={editingLeave.reason} onChange={(e) => setEditingLeave({ ...editingLeave, reason: e.target.value })} /> : leave.reason}</td>
+                          <td>
+                            <span
+                              style={{
+                                padding: "4px 12px",
+                                borderRadius: "9999px",
+                                fontSize: "12px",
+                                fontWeight: "600",
+                                background: leave.status === RequestStatus.APPROVED ? "#c6f6d5" : leave.status === RequestStatus.REJECTED || leave.status === RequestStatus.DENIED ? "#fed7d7" : "#feebc8",
+                                color: leave.status === RequestStatus.APPROVED ? "#276749" : leave.status === RequestStatus.REJECTED || leave.status === RequestStatus.DENIED ? "#c53030" : "#c05621"
+                              }}
+                            >
+                              {leave.status}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="pm-actions" style={{ flexWrap: "wrap" }}>
+                              {leave.status === RequestStatus.PENDING && !isSelf && (
+                                <>
+                                  <button className="pm-btn pm-btn-primary" onClick={() => handleLeaveStatus(leave.id, RequestStatus.APPROVED)}>Approve</button>
+                                  <button className="pm-btn pm-btn-reject" onClick={() => handleLeaveStatus(leave.id, RequestStatus.REJECTED)}>Reject</button>
+                                </>
+                              )}
+                              {isEditing ? (
+                                <>
+                                  <button className="pm-btn" style={{ background: "#38a169", color: "white", border: "none", borderRadius: "4px", padding: "6px 12px", fontSize: "13px" }} onClick={() => saveEditLeave(leave.id)}>Save</button>
+                                  <button className="pm-btn" style={{ background: "#718096", color: "white", border: "none", borderRadius: "4px", padding: "6px 12px", fontSize: "13px" }} onClick={cancelEditLeave}>Cancel</button>
+                                </>
+                              ) : (
+                                <>
+                                  <button className="pm-btn" style={{ background: "#63b3ed", color: "white", border: "none", borderRadius: "4px", padding: "6px 12px", fontSize: "13px" }} onClick={() => startEditLeave(leave)}>Edit</button>
+                                  <button className="pm-btn" style={{ background: "#e53e3e", color: "white", border: "none", borderRadius: "4px", padding: "6px 12px", fontSize: "13px" }} onClick={() => deleteLeaveRequest(leave.id)}>Delete</button>
+                                </>
+                              )}
                             </div>
-                          ) : (
-                            <span style={{ color: "#718096", fontSize: 13 }}>—</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}

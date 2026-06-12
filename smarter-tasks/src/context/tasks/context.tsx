@@ -84,7 +84,13 @@ const deleteTask = useCallback(
 
   const getDeletedTasks = useCallback(() => {
     const stored = localStorage.getItem(STORAGE_KEYS.TASKS);
-    const tasks: Task[] = stored ? JSON.parse(stored) : [];
+    let tasks: Task[] = [];
+    try {
+      const parsed = JSON.parse(stored || "null");
+      if (Array.isArray(parsed)) tasks = parsed;
+    } catch {
+      // ignore malformed JSON
+    }
     return tasks.filter((t) => t.deletedAt);
   }, []);
 

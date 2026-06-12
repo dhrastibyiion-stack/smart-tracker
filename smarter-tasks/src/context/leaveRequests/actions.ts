@@ -31,6 +31,7 @@ export const createLeaveRequest = async (opts: {
   data: {
     requesterId: number;
     requesterName: string;
+    leaveType: "Casual" | "Sick" | "UnPaid";
     days: number;
     reason: string;
     startDate: string;
@@ -53,6 +54,7 @@ export const createLeaveRequest = async (opts: {
       id: Date.now(),
       requesterId: data.requesterId,
       requesterName: data.requesterName,
+      leaveType: data.leaveType,
       days: data.days,
       reason: data.reason,
       status: "Pending",

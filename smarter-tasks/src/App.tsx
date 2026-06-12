@@ -17,7 +17,7 @@ import ProtectedRoute from "./ProtectedRoute";
 import Signin from "./pages/Signin";
 import HomePage from "./pages/HomePage";
 import Notfound from "./pages/Notfound";
-import TrashPage from "./pages/TrashPage";
+import LeaveRequestPage from "./pages/leaveRequests/LeaveRequestPage";
 
 import AdminDashboard from "./pages/AdminDashboard";
 import SetPassword from "./pages/SetPassword";
@@ -59,11 +59,13 @@ return (
                               />
                             </Route>
 
- <Route element={<ProtectedRoute roles={["dev", "admin"]} />}>
-                              <Route path="/dev-dashboard" element={<DeveloperDashboard />} />
+                            <Route element={<ProtectedRoute roles={["dev", "admin"]} />}>
+        <Route path="/dev-dashboard" element={<DeveloperDashboard />} />
                             </Route>
+ 
+  
+                            <Route path="/leave-request" element={<LeaveRequestPage />} />
 
- <Route path="/trash" element={<TrashPage />} />
 
                             <Route path="/" element={<HomePage />} />
                             <Route path="/signin" element={<Signin />} />

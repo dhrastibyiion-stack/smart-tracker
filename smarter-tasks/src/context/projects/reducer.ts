@@ -18,7 +18,7 @@ type State = {
 
 export type Action =
   | { type: "API_CALL_START" }
-  | { type: "API_CALL_END"; payload: { projects: Project[]; companyId?: string | null } }
+  | { type: "API_CALL_END"; payload: { projects: Project[] | null | undefined; companyId?: string | null } }
   | { type: "API_CALL_ERROR"; payload: string }
   | { type: "UPDATE_PROJECT_SUCCESS"; payload: { id: number; updates: Partial<Omit<Project, "id">> } }
   | { type: "DELETE_PROJECT_SUCCESS"; payload: number };
@@ -34,9 +34,12 @@ export const reducer = (state: State, action: Action): State => {
 
     case "API_CALL_END": {
       const companyId = action.payload.companyId ?? state.companyId;
+      const raw = Array.isArray(action.payload.projects)
+        ? action.payload.projects
+        : [];
       const projects = companyId
-        ? action.payload.projects.filter((p) => p.companyId === companyId)
-        : action.payload.projects;
+        ? raw.filter((p) => p.companyId === companyId)
+        : raw;
       return {
         ...state,
         isLoading: false,

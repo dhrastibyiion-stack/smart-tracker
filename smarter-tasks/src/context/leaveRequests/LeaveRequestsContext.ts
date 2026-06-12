@@ -5,6 +5,7 @@ export type LeaveRequest = {
   id: number;
   requesterId: number;
   requesterName: string;
+  leaveType: "Casual" | "Sick" | "UnPaid";
   days: number;
   reason: string;
   status: RequestStatus;
@@ -22,6 +23,7 @@ export type LeaveRequestsContextValue = {
   createLeaveRequest: (data: {
     requesterId: number;
     requesterName: string;
+    leaveType: "Casual" | "Sick" | "UnPaid";
     days: number;
     reason: string;
     startDate: string;

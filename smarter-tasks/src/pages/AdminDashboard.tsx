@@ -7,7 +7,6 @@ import { useMembers } from "../context/members";
 import { useLeaveRequests } from "../context/leaveRequests";
 import { useTimeTracking } from "../context/timeTracking";
 import { RequestStatus, UserRole } from "../config/constants";
-import { type Member } from "../context/members";
 import "../admin-dashboard.css";
 
 type TaskCreateState = {
@@ -18,15 +17,6 @@ type TaskCreateState = {
   assignedTo?: number;
 };
 
-type LeaveCreateState = {
-  requesterName: string;
-  requesterId: number;
-  days: number;
-  reason: string;
-  startDate: string;
-  endDate: string;
-};
-
 const AdminDashboard = () => {
   const { user, role, logout } = useAuth();
   const navigate = useNavigate();
@@ -34,7 +24,7 @@ const AdminDashboard = () => {
   const { tasks, isLoading: tasksLoading, createTask, updateTaskStatus, deleteTask } = useTasks();
   const { projects, createProject } = useProjects();
   const { members: allMembers, createMember, deleteMember } = useMembers();
-  const { leaveRequests, createLeaveRequest, updateLeaveRequestStatus } = useLeaveRequests();
+  const { leaveRequests, updateLeaveRequest, deleteLeaveRequest } = useLeaveRequests();
   const { timeLogs, isLoading: timeLogsLoading } = useTimeTracking();
 
   const myCompanyId = user?.companyId;
@@ -42,15 +32,46 @@ const AdminDashboard = () => {
     () => allMembers.filter((m) => m.companyId === myCompanyId || !m.companyId),
     [allMembers, myCompanyId]
   );
+  const projectManagers = useMemo(
+    () => companyMembers.filter((m) => m.role === UserRole.PROJECT_MANAGER),
+    [companyMembers]
+  );
   const pendingLeaves = useMemo(() => leaveRequests.filter((l) => l.status === RequestStatus.PENDING), [leaveRequests]);
   const inProgressTasks = useMemo(() => tasks.filter((t) => t.status === "In Progress"), [tasks]);
   const completedTasks = useMemo(() => tasks.filter((t) => t.status === "Completed"), [tasks]);
+  const completedTaskIds = useMemo(() => new Set(completedTasks.map((t) => t.id)), [completedTasks]);
 
-  const [activeSection, setActiveSection] = useState<"tasks" | "projects" | "members" | "leaves" | "devlogs">("tasks");
-  const [newTask, setNewTask] = useState<TaskCreateState>({ title: "", projectId: "", description: "", date: "" });
+  const visibleTasks = useMemo(
+    () => (myCompanyId ? tasks.filter((t) => t.companyId === myCompanyId) : tasks),
+    [tasks, myCompanyId]
+  );
+
+  const companyProjects = useMemo(
+    () => (myCompanyId ? projects.filter((p) => p.companyId === myCompanyId) : projects),
+    [projects, myCompanyId]
+  );
+
+  const visibleLeaveRequests = useMemo(
+    () => (myCompanyId ? leaveRequests.filter((l) => l.companyId === myCompanyId) : leaveRequests),
+    [leaveRequests, myCompanyId]
+  );
+
+  const visibleTimeLogs = useMemo(
+    () => (myCompanyId ? timeLogs.filter((log) => log.companyId === myCompanyId) : timeLogs),
+    [timeLogs, myCompanyId]
+  );
+
+
+  const [activeSection, setActiveSection] = useState<"tasks" | "projects" | "companyMembers" | "leaves" | "devlogs">("tasks");
+
+
+  const [newTask, setNewTask] = useState<TaskCreateState>({ title: "", projectId: "", description: "", date: "", assignedTo: undefined });
   const [newProject, setNewProject] = useState({ name: "", description: "", date: "", assignedTo: "" });
-  const [newMember, setNewMember] = useState({ name: "", email: "", password: "", role: UserRole.DEV });
-  const [newLeave, setNewLeave] = useState<LeaveCreateState>({ requesterName: "", requesterId: 0, days: 1, reason: "", startDate: "", endDate: "" });
+  const [newMember, setNewMember] = useState<{ name: string; email: string; password: string; role: UserRole }>({ name: "", email: "", password: "", role: UserRole.DEV });
+  const [editingLeaveId, setEditingLeaveId] = useState<number | null>(null);
+  const [editingLeave, setEditingLeave] = useState({ requesterName: "", leaveType: "Casual" as "Casual" | "Sick" | "UnPaid", days: 1, reason: "", startDate: "", endDate: "" });
+
+  const dateInputRef = useRef<HTMLInputElement>(null);
 
   if (!isAdmin) {
     return (
@@ -79,7 +100,7 @@ const AdminDashboard = () => {
       assignedTo: newTask.assignedTo,
       companyId: myCompanyId,
     });
-    setNewTask({ title: "", projectId: "", description: "", date: "" });
+    setNewTask({ title: "", projectId: "", description: "", date: "", status: "Todo", assignedTo: undefined });
   };
 
   const handleCreateProject = (e: React.FormEvent) => {
@@ -102,26 +123,56 @@ const AdminDashboard = () => {
     setNewMember({ name: "", email: "", password: "", role: UserRole.DEV });
   };
 
-  const handleCreateLeaveForMember = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newLeave.requesterName.trim() || !newLeave.reason.trim() || !newLeave.startDate || !newLeave.endDate || !myCompanyId) return;
-    createLeaveRequest({
-      requesterId: newLeave.requesterId,
-      requesterName: newLeave.requesterName,
-      days: newLeave.days,
-      reason: newLeave.reason,
-      startDate: newLeave.startDate,
-      endDate: newLeave.endDate,
-      companyId: myCompanyId,
+  const handleLeaveStatus = (id: number, status: RequestStatus) => {
+    updateLeaveRequestStatus(id, status);
+  };
+
+  const computeLeaveDays = (startDate: string, endDate: string) => {
+    if (!startDate || !endDate) return 1;
+    const diffMs = new Date(endDate).getTime() - new Date(startDate).getTime();
+    if (diffMs < 0) return 1;
+    return Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+  };
+
+  const startEditLeave = (leave: {
+    id: number;
+    requesterName: string;
+    leaveType: "Casual" | "Sick" | "UnPaid";
+    days: number;
+    reason: string;
+    startDate: string;
+    endDate: string;
+  }) => {
+    setEditingLeaveId(leave.id);
+    setEditingLeave({
+      requesterName: leave.requesterName,
+      leaveType: leave.leaveType,
+      days: leave.days,
+      reason: leave.reason,
+      startDate: leave.startDate,
+      endDate: leave.endDate,
     });
-    setNewLeave({ requesterName: "", requesterId: 0, days: 1, reason: "", startDate: "", endDate: "" });
+  };
+
+  const cancelEditLeave = () => {
+    setEditingLeaveId(null);
+    setEditingLeave({ requesterName: "", leaveType: "Casual", days: 1, reason: "", startDate: "", endDate: "" });
+  };
+
+  const saveEditLeave = async (id: number) => {
+    if (!editingLeave.requesterName.trim() || !editingLeave.reason.trim() || !editingLeave.startDate || !editingLeave.endDate) return;
+    await updateLeaveRequest(id, {
+      days: computeLeaveDays(editingLeave.startDate, editingLeave.endDate),
+      reason: editingLeave.reason.trim(),
+      startDate: editingLeave.startDate,
+      endDate: editingLeave.endDate,
+    });
+    cancelEditLeave();
   };
 
   const handleLeaveStatus = (id: number, status: RequestStatus) => {
     updateLeaveRequestStatus(id, status);
   };
-
-  const dateInputRef = useRef<HTMLInputElement>(null);
 
   const openDatePicker = () => {
     dateInputRef.current?.showPicker();
@@ -203,15 +254,11 @@ const AdminDashboard = () => {
                 <input className="admin-input" type="text" placeholder="e.g. Fix payment bug" value={newTask.title} onChange={(e) => setNewTask({ ...newTask, title: e.target.value })} />
               </div>
               <div className="admin-form-row">
-                <label>Project ID</label>
-                <input className="admin-input" type="text" placeholder="e.g. PRJ-102" value={newTask.projectId} onChange={(e) => setNewTask({ ...newTask, projectId: e.target.value })} />
-              </div>
-              <div className="admin-form-row admin-date-row">
-                <label>Date</label>
-                <div className="admin-date-input-wrap">
-                  <input ref={dateInputRef} className="admin-input" type="date" value={newTask.date} onChange={(e) => setNewTask({ ...newTask, date: e.target.value })} />
-                  <button type="button" className="admin-date-icon" onClick={openDatePicker} aria-label="Open calendar">📅</button>
-                </div>
+                <label>Project</label>
+                <select className="admin-input" value={newTask.projectId} onChange={(e) => setNewTask({ ...newTask, projectId: e.target.value })}>
+                  <option value="">Select project</option>
+                  {companyProjects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
               </div>
               <div className="admin-form-row">
                 <label>Assign to</label>
@@ -227,50 +274,60 @@ const AdminDashboard = () => {
                    {companyMembers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
                 </select>
               </div>
+              <div className="admin-form-row admin-date-row">
+                <label>Date</label>
+                <div className="admin-date-input-wrap">
+                  <input ref={dateInputRef} className="admin-input" type="date" value={newTask.date} onChange={(e) => setNewTask({ ...newTask, date: e.target.value })} />
+                  <button type="button" className="admin-date-icon" onClick={openDatePicker} aria-label="Open calendar">📅</button>
+                </div>
+              </div>
               <button type="submit" className="admin-btn admin-btn-success">Add Task</button>
             </form>
             {tasksLoading ? (
               <p className="admin-empty">Loading...</p>
+            ) : visibleTasks.length === 0 ? (
+              <p className="admin-empty admin-empty-detail">No tasks yet. Create one above to see it here with full details.</p>
             ) : (
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th>ID</th>
                       <th>Title</th>
                       <th>Project</th>
                       <th>Assignee</th>
-                      <th>Status</th>
+                      <th>Date</th>
                       <th>Created</th>
+                      <th>Status</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {visibleTasks.map((task) => {
                       const assignee = companyMembers.find((m) => m.id === task.assignedTo);
+                      const project = companyProjects.find((p) => String(p.id) === String(task.projectId));
+                      const rowStatus = task.status === "Completed" ? "Complete" : "In Progress";
+                      const rowStatusClass = task.status === "Completed" ? "admin-pill-ok" : "admin-pill-warn";
                       return (
                         <tr key={task.id}>
-                          <td>{task.id}</td>
                           <td>{task.title}</td>
-                          <td>{task.projectId}</td>
+                          <td>{project ? project.name : task.projectId}</td>
                           <td>{assignee ? assignee.name : "Unassigned"}</td>
+                          <td><span className="admin-date">{task.date || "-"}</span></td>
+                          <td><span className="admin-date">{new Date(task.createdAt).toLocaleDateString()}</span></td>
                           <td>
-                            <span className={`admin-pill ${task.status === "Completed" ? "admin-pill-ok" : task.status === "In Progress" ? "admin-pill-warn" : "admin-pill-ghost"}`}>
-                              {task.status}
-                            </span>
+                            <span className={`admin-pill ${rowStatusClass}`}>{rowStatus}</span>
                           </td>
-                          <td><span className="admin-date">🗓️ {new Date(task.createdAt).toLocaleDateString()}</span></td>
-                            <td>
-                              <div className="admin-table-actions">
-                                {task.status !== "In Progress" && task.status !== "Completed" && (
-                                  <button className="admin-btn admin-btn-primary admin-btn-sm" onClick={() => updateTaskStatus(task.id, "In Progress")}>Start</button>
-                                )}
-                                {task.status === "In Progress" && (
-                                  <button className="admin-btn admin-btn-info admin-btn-sm" onClick={() => updateTaskStatus(task.id, "Completed")}>Complete</button>
-                                )}
-                                <button className="admin-btn admin-btn-danger admin-btn-sm" onClick={() => deleteTask(task.id)}>Delete</button>
-                              </div>
-                            </td>
+                          <td>
+                            <div className="admin-table-actions">
+                              {task.status !== "In Progress" && task.status !== "Completed" && (
+                                <button className="admin-btn admin-btn-primary admin-btn-sm" onClick={() => updateTaskStatus(task.id, "In Progress")}>Start</button>
+                              )}
+                              {task.status === "In Progress" && (
+                                <button className="admin-btn admin-btn-info admin-btn-sm" onClick={() => updateTaskStatus(task.id, "Completed")}>Complete</button>
+                              )}
+                              <button className="admin-btn admin-btn-danger admin-btn-sm" onClick={() => deleteTask(task.id)}>Delete</button>
+                            </div>
+                          </td>
                         </tr>
                       );
                     })}
@@ -298,10 +355,10 @@ const AdminDashboard = () => {
                 <input className="admin-input" type="date" value={newProject.date} onChange={(e) => setNewProject({ ...newProject, date: e.target.value })} />
               </div>
               <div className="admin-form-row">
-                <label>Assign to</label>
+                <label>Assign to (PM only)</label>
                 <select className="admin-input" value={newProject.assignedTo} onChange={(e) => setNewProject({ ...newProject, assignedTo: e.target.value })}>
                   <option value="">Unassigned</option>
-                   {companyMembers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                   {projectManagers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
               </div>
               <button type="submit" className="admin-btn admin-btn-success">Create Project</button>
@@ -314,18 +371,36 @@ const AdminDashboard = () => {
                   <thead>
                     <tr>
                       <th>Name</th>
+                      <th>Description</th>
+                      <th>Date</th>
+                      <th>Assignee</th>
+                      <th>Status</th>
                       <th>Tasks</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {companyProjects.map((p) => (
-                      <tr key={p.id}>
-                        <td>{p.name}</td>
-                        <td>
-                          <span className="admin-pill admin-pill-ghost">{visibleTasks.filter((t) => String(t.projectId) === String(p.id)).length} tasks</span>
-                        </td>
-                      </tr>
-                    ))}
+                    {companyProjects.map((p) => {
+                      const assignee = companyMembers.find((m) => String(m.id) === String(p.assignedTo));
+                      const projectTasks = visibleTasks.filter((t) => String(t.projectId) === String(p.id));
+                      const taskCount = projectTasks.length;
+                      const allCompleted = taskCount > 0 && projectTasks.every((t) => t.status === "Completed");
+                      const statusLabel = allCompleted ? "Complete" : "In Progress";
+                      const statusClass = allCompleted ? "admin-pill-ok" : "admin-pill-warn";
+                      return (
+                        <tr key={p.id}>
+                          <td>{p.name}</td>
+                          <td>{p.description || "-"}</td>
+                          <td><span className="admin-date">{p.date || "-"}</span></td>
+                          <td>{assignee ? assignee.name : "Unassigned"}</td>
+                          <td>
+                            <span className={`admin-pill ${statusClass}`}>{statusLabel}</span>
+                          </td>
+                          <td>
+                            <span className="admin-pill admin-pill-ghost">{taskCount} task(s)</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -354,9 +429,7 @@ const AdminDashboard = () => {
                   <label>Role</label>
                   <select className="admin-input" value={newMember.role} onChange={(e) => {
                     const value = e.target.value;
-                    if (value === UserRole.DEV || value === UserRole.PROJECT_MANAGER) {
-                      setNewMember({ ...newMember, role: value });
-                    }
+                    setNewMember({ ...newMember, role: value as UserRole });
                   }} style={{ minWidth: "130px", borderRadius: "10px" }}>
                     <option value={UserRole.DEV}>Developer</option>
                     <option value={UserRole.PROJECT_MANAGER}>Project Manager</option>
@@ -403,55 +476,70 @@ const AdminDashboard = () => {
         {activeSection === "leaves" && (
           <section className="admin-section">
             <h2>Leave Requests</h2>
-            <form onSubmit={handleCreateLeaveForMember} className="admin-form">
-              <div className="admin-form-row">
-                <label>Requester name</label>
-                <input className="admin-input" type="text" placeholder="Jane" value={newLeave.requesterName} onChange={(e) => setNewLeave({ ...newLeave, requesterName: e.target.value, requesterId: Date.now() })} />
-              </div>
-              <div className="admin-form-row">
-                <label>Days</label>
-                <input className="admin-input" type="number" min={1} value={newLeave.days} onChange={(e) => setNewLeave({ ...newLeave, days: parseInt(e.target.value, 10) || 1 })} />
-              </div>
-              <div className="admin-form-row">
-                <label>Start date</label>
-                <input className="admin-input" type="date" value={newLeave.startDate} onChange={(e) => setNewLeave({ ...newLeave, startDate: e.target.value })} />
-              </div>
-              <div className="admin-form-row">
-                <label>End date</label>
-                <input className="admin-input" type="date" value={newLeave.endDate} onChange={(e) => setNewLeave({ ...newLeave, endDate: e.target.value })} />
-              </div>
-              <div className="admin-form-row">
-                <label>Reason</label>
-                <input className="admin-input" type="text" placeholder="Family travel" value={newLeave.reason} onChange={(e) => setNewLeave({ ...newLeave, reason: e.target.value })} />
-              </div>
-              <button type="submit" className="admin-btn admin-btn-success">Create Leave</button>
-            </form>
             {visibleLeaveRequests.length === 0 ? (
               <p className="admin-empty">No leave requests found.</p>
             ) : (
-              <div>
-                {visibleLeaveRequests.map((leave) => (
-                  <div key={leave.id} className="admin-leave-card">
-                    <div className="admin-leave-header">
-                      <div>
-                        <h3 className="admin-leave-name">{leave.requesterName}</h3>
-                        <div className="admin-leave-meta">
-                          <span>⏳ {leave.days} day(s)</span>
-                          <span className={`admin-pill ${leave.status === RequestStatus.APPROVED ? "admin-pill-ok" : leave.status === RequestStatus.REJECTED || leave.status === RequestStatus.DENIED ? "admin-pill-err" : "admin-pill-warn"}`}>
-                            {leave.status}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <p className="admin-leave-reason">{leave.reason}</p>
-                    {leave.status === RequestStatus.PENDING && (
-                      <div className="admin-leave-actions">
-                        <button className="admin-btn admin-btn-primary admin-btn-sm" onClick={() => handleLeaveStatus(leave.id, RequestStatus.APPROVED)}>Approve</button>
-                        <button className="admin-btn admin-btn-secondary admin-btn-sm" onClick={() => handleLeaveStatus(leave.id, RequestStatus.REJECTED)}>Reject</button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Requester</th>
+                      <th>Leave Type</th>
+                      <th>Duration</th>
+                      <th>Reason</th>
+                      <th>Status</th>
+                      <th style={{ width: "140px" }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleLeaveRequests.map((leave) => {
+                      const isEditing = editingLeaveId === leave.id;
+                      const leaveRow = () => (
+                        <tr key={leave.id}>
+                          <td>
+                            {isEditing ? <input className="admin-input" style={{ padding: "6px 8px", minWidth: "120px" }} value={editingLeave.requesterName} onChange={(e) => setEditingLeave({ ...editingLeave, requesterName: e.target.value })} /> : leave.requesterName}
+                          </td>
+                          <td>
+                            {isEditing ? <select className="admin-input" style={{ padding: "6px 8px" }} value={editingLeave.leaveType} onChange={(e) => setEditingLeave({ ...editingLeave, leaveType: e.target.value as "Casual" | "Sick" | "UnPaid" })}><option value="Casual">Casual</option><option value="Sick">Sick</option><option value="UnPaid">UnPaid</option></select> : leave.leaveType}
+                          </td>
+                          <td>
+                            <span style={{ fontSize: "12px" }}>
+                              {isEditing ? <><input type="date" className="admin-input" style={{ padding: "6px 8px", minWidth: "120px" }} value={editingLeave.startDate} onChange={(e) => setEditingLeave({ ...editingLeave, startDate: e.target.value })} /> <span style={{ padding: "0 4px" }}>→</span> <input type="date" className="admin-input" style={{ padding: "6px 8px", minWidth: "120px" }} value={editingLeave.endDate} onChange={(e) => setEditingLeave({ ...editingLeave, endDate: e.target.value })} /></> : <><span style={{ fontSize: "12px" }}>{leave.startDate ? new Date(leave.startDate).toLocaleDateString() : "-"} → {leave.endDate ? new Date(leave.endDate).toLocaleDateString() : "-"}</span><br /><span style={{ color: "#718096", fontSize: "12px" }}>{leave.days} day(s)</span></>}
+                            </span>
+                          </td>
+                          <td>{isEditing ? <textarea className="admin-input" style={{ padding: "6px 8px", minWidth: "160px" }} value={editingLeave.reason} onChange={(e) => setEditingLeave({ ...editingLeave, reason: e.target.value })} /> : leave.reason}</td>
+                          <td>
+                            <span className={`admin-pill ${leave.status === RequestStatus.APPROVED ? "admin-pill-ok" : leave.status === RequestStatus.REJECTED || leave.status === RequestStatus.DENIED ? "admin-pill-err" : "admin-pill-warn"}`}>
+                              {leave.status}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="admin-table-actions" style={{ flexWrap: "wrap" }}>
+                              {leave.status === RequestStatus.PENDING && (
+                                <>
+                                  <button className="admin-btn admin-btn-primary admin-btn-sm" onClick={() => handleLeaveStatus(leave.id, RequestStatus.APPROVED)}>Approve</button>
+                                  <button className="admin-btn admin-btn-secondary admin-btn-sm" onClick={() => handleLeaveStatus(leave.id, RequestStatus.REJECTED)}>Reject</button>
+                                </>
+                              )}
+                              {isEditing ? (
+                                <>
+                                  <button className="admin-btn admin-btn-success admin-btn-sm" onClick={() => saveEditLeave(leave.id)}>Save</button>
+                                  <button className="admin-btn admin-btn-secondary admin-btn-sm" onClick={cancelEditLeave}>Cancel</button>
+                                </>
+                              ) : (
+                                <>
+                                  <button className="admin-btn admin-btn-info admin-btn-sm" onClick={() => startEditLeave(leave)}>Edit</button>
+                                  <button className="admin-btn admin-btn-danger admin-btn-sm" onClick={() => deleteLeaveRequest(leave.id)}>Delete</button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                      return leaveRow();
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>

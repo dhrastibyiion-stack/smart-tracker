@@ -1,6 +1,5 @@
 import { STORAGE_KEYS } from "../../config/constants";
 import type { Action, Task } from "./reducer";
-import type { TaskStatus } from "../../config/constants";
 type Dispatch = (action: Action) => void;
 
 export const refreshTasks = async (opts: {
@@ -33,7 +32,7 @@ export const refreshTasks = async (opts: {
 };
 
 export const createTaskRequest = async (opts: {
-  data: { title: string; projectId: string; assignedTo?: number; createdAt?: number; description?: string; date?: string; dueDate?: string; assigneeName?: string; creatorId?: number; creatorName?: string; companyId?: string; createdBy?: string };
+  data: { title: string; projectId: string; projectName?: string; assignedTo?: number; createdAt?: number; description?: string; date?: string; dueDate?: string; assigneeName?: string; creatorId?: number; creatorName?: string; companyId?: string; createdBy?: string; status?: string };
   dispatch: Dispatch;
   refresh: () => Promise<void>;
 }) => {
@@ -48,7 +47,8 @@ export const createTaskRequest = async (opts: {
       id: Date.now(),
       title: data.title,
       projectId: data.projectId,
-      status: "Pending",
+      projectName: data.projectName,
+      status: (data.status ?? "Pending") as Task["status"],
       assignedTo: data.assignedTo,
       createdAt: data.createdAt ?? Date.now(),
       description: data.description,

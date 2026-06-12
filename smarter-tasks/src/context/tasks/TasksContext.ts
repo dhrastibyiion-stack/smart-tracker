@@ -6,6 +6,7 @@ export type Task = {
   title: string;
   description?: string;
   projectId: string;
+  projectName?: string;
   status: TaskStatus;
   assignedTo?: number;
   date?: string;
@@ -26,7 +27,7 @@ export type TasksContextValue = {
   isLoading: boolean;
   error: string | null;
   refreshTasks: () => Promise<void>;
-  createTask: (data: { title: string; projectId: string; assignedTo?: number; createdAt?: number; description?: string; date?: string; companyId?: string; createdBy?: string }) => Promise<void>;
+  createTask: (data: { title: string; projectId: string; projectName?: string; status?: TaskStatus; assignedTo?: number; createdAt?: number; description?: string; date?: string; companyId?: string; createdBy?: string }) => Promise<void>;
   updateTaskStatus: (id: number, status: TaskStatus) => Promise<void>;
   updateTask: (id: number, data: { title: string; description?: string; projectId: string; assignedTo?: number; date?: string }) => Promise<void>;
   deleteTask: (id: number) => Promise<void>;

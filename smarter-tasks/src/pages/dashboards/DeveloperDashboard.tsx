@@ -13,6 +13,7 @@ import type { TimeLog } from "../../context/timeTracking/TimeTrackingContext";
 import CommentDialog from "../../CommentDialog";
 import "../leaveRequests/LeaveRequests.css";
 import "../../TaskCard.css";
+import LeaveRequestPage from "../leaveRequests/LeaveRequestPage";
 
 const DeveloperDashboard = () => {
   const { user, role, logout } = useAuth();
@@ -22,18 +23,12 @@ const DeveloperDashboard = () => {
   const { createLeaveRequest, leaveRequests } = useLeaveRequests();
   const { timeLogs, addTimeLog, deleteTimeLog, updateTimeLog, recordActivity } = useTimeTracking();
   const navigate = useNavigate();
-  const canAccess = role === "dev";
+  const canAccess = role === "dev" || role === "admin";
 
   const loginRecordedRef = useRef(false);
 
   const [showLeaveForm, setShowLeaveForm] = useState(false);
   const [showActivitySection, setShowActivitySection] = useState(false);
-  const [leaveName, setLeaveName] = useState("");
-  const [leaveReason, setLeaveReason] = useState("");
-  const [leaveFrom, setLeaveFrom] = useState("");
-  const [leaveTo, setLeaveTo] = useState("");
-  const [leaveMessage, setLeaveMessage] = useState("");
-  const [leaveError, setLeaveError] = useState("");
 
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [editingTask, setEditingTask] = useState({ title: "", description: "", assignedTo: "", projectId: "" });
@@ -136,46 +131,6 @@ const DeveloperDashboard = () => {
     }
     logout();
     navigate("/", { replace: true });
-  };
-
-  const handleLeaveSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLeaveError("");
-    setLeaveMessage("");
-
-    if (!leaveName.trim() || !leaveReason.trim() || !leaveFrom || !leaveTo) {
-      setLeaveError("Please fill in all fields.");
-      return;
-    }
-
-    if (new Date(leaveFrom) > new Date(leaveTo)) {
-      setLeaveError("From date cannot be after To date.");
-      return;
-    }
-
-    const start = new Date(leaveFrom);
-    const end = new Date(leaveTo);
-    const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-
-    try {
-      await createLeaveRequest({
-        requesterId: currentMemberId || 0,
-        requesterName: leaveName.trim(),
-        days,
-        reason: leaveReason.trim(),
-        startDate: leaveFrom,
-        endDate: leaveTo,
-        companyId: user?.companyId,
-      });
-      setLeaveMessage("Leave request submitted successfully.");
-      setLeaveName("");
-      setLeaveReason("");
-      setLeaveFrom("");
-      setLeaveTo("");
-    } catch (err) {
-      setLeaveMessage("");
-      setLeaveError("Failed to submit leave request.");
-    }
   };
 
   const requestDelete = (id: number) => {
@@ -484,138 +439,7 @@ const DeveloperDashboard = () => {
         <div className="pm-content">
           {showLeaveForm ? (
             <section className="pm-section" style={{ gridColumn: "1 / -1" }}>
-              <div className="pm-leave-form-card">
-                <h2 className="pm-leave-form-title">Apply for Leave</h2>
-
-                {leaveError && (
-                  <div className="pm-leave-message pm-leave-message-error">
-                    {leaveError}
-                  </div>
-                )}
-                {leaveMessage && (
-                  <div className="pm-leave-message pm-leave-message-success">
-                    {leaveMessage}
-                  </div>
-                )}
-
-                <form className="pm-leave-form-grid" onSubmit={handleLeaveSubmit}>
-                  <div className="pm-form-group">
-                    <label htmlFor="leaveName">Name</label>
-                    <input
-                      id="leaveName"
-                      className="pm-input"
-                      type="text"
-                      placeholder="Your name"
-                      value={leaveName}
-                      onChange={(e) => setLeaveName(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="pm-form-group">
-                    <label htmlFor="leaveFrom">From</label>
-                    <input
-                      id="leaveFrom"
-                      className="pm-input"
-                      type="date"
-                      value={leaveFrom}
-                      onChange={(e) => setLeaveFrom(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="pm-form-group">
-                    <label htmlFor="leaveTo">To</label>
-                    <input
-                      id="leaveTo"
-                      className="pm-input"
-                      type="date"
-                      value={leaveTo}
-                      onChange={(e) => setLeaveTo(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="pm-form-group" style={{ gridColumn: "1 / -1" }}>
-                    <label htmlFor="leaveReason">Reason</label>
-                    <textarea
-                      id="leaveReason"
-                      className="pm-input"
-                      rows={4}
-                      placeholder="Reason for leave"
-                      value={leaveReason}
-                      onChange={(e) => setLeaveReason(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="pm-leave-form-actions">
-                    <button type="submit" className="pm-btn pm-btn-primary">
-                      Submit Leave Request
-                    </button>
-                    <button
-                      type="button"
-                      className="pm-btn pm-btn-secondary"
-                      onClick={() => setShowLeaveForm(false)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-
-                {(leaveName || leaveReason || leaveFrom || leaveTo) && (
-                  <div className="pm-leave-preview">
-                    <h3>Form Preview</h3>
-                    <div className="pm-leave-preview-grid">
-                      <div className="pm-preview-item">
-                        <span className="pm-preview-label">Name</span>
-                        <span className="pm-preview-value">{leaveName || "-"}</span>
-                      </div>
-                      <div className="pm-preview-item">
-                        <span className="pm-preview-label">From</span>
-                        <span className="pm-preview-value">{leaveFrom ? new Date(leaveFrom).toLocaleDateString() : "-"}</span>
-                      </div>
-                      <div className="pm-preview-item">
-                        <span className="pm-preview-label">To</span>
-                        <span className="pm-preview-value">{leaveTo ? new Date(leaveTo).toLocaleDateString() : "-"}</span>
-                      </div>
-                      <div className="pm-preview-item pm-preview-full">
-                        <span className="pm-preview-label">Reason</span>
-                        <span className="pm-preview-value">{leaveReason || "-"}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="pm-leave-history">
-                  <h3>Leave History</h3>
-                  {(myLeaveRequests || []).length === 0 ? (
-                    <p className="empty-state">No leave requests found.</p>
-                  ) : (
-                    <table className="pm-table">
-                      <thead>
-                        <tr>
-                          <th>From</th>
-                          <th>To</th>
-                          <th>Reason</th>
-                          <th>Status</th>
-                          <th>Submitted</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(myLeaveRequests || [])
-                          .slice()
-                          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                          .map((leave) => (
-                            <tr key={leave.id}>
-                              <td>{leave.startDate ? new Date(leave.startDate).toLocaleDateString() : "-"}</td>
-                              <td>{leave.endDate ? new Date(leave.endDate).toLocaleDateString() : "-"}</td>
-                              <td>{leave.reason}</td>
-                              <td>{leave.status}</td>
-                              <td>{formatDateTime(new Date(leave.createdAt).toISOString())}</td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </div>
+              <LeaveRequestPage />
             </section>
           ) : showActivitySection ? (
             <section className="pm-section" style={{ gridColumn: "1 / -1" }}>

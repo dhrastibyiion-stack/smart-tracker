@@ -128,38 +128,38 @@
 }
 
 /* Card utility */
-.auth-container {
+ .auth-container {
    min-height: 100vh;
    display: flex;
    align-items: center;
    justify-content: center;
    background: var(--auth-white);
-   padding: 20px;
- }
+   padding: 12px;
+  }
 
 .auth-card {
    background: #ffffff;
    border-radius: 16px;
    box-shadow: var(--shadow);
-   padding: 40px;
-   max-width: 400px;
+   padding: 24px 20px 22px;
+   max-width: 340px;
    width: 100%;
    text-align: center;
    border: 1px solid var(--border);
- }
+  }
 
- .auth-title {
-   font-size: 28px;
-   font-weight: 600;
-   color: #000000;
-   margin: 0 0 8px;
- }
+  .auth-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #000000;
+    margin: 0 0 6px;
+  }
 
- .auth-subtitle {
-   color: #000000;
-   margin: 0 0 24px;
-   font-size: 15px;
- }
+  .auth-subtitle {
+    color: #000000;
+    margin: 0 0 14px;
+    font-size: 13px;
+  }
 
 .auth-error {
    background: var(--auth-white);

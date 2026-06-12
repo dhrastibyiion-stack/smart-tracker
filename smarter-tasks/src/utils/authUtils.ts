@@ -199,9 +199,9 @@ export const registerAdmin = (name: string, email: string, password: string, com
   }
 
   const trimmedCompanyId = companyId.trim();
-  const existingAdmin = users.find((u) => u.companyId === trimmedCompanyId && u.role === "admin");
-  if (existingAdmin) {
-    throw new Error("An administrator is already registered for this organization.");
+  const existingAdmins = users.filter((u) => u.companyId === trimmedCompanyId && u.role === "admin");
+  if (existingAdmins.length >= 2) {
+    throw new Error("An organization can have at most two administrators.");
   }
 
   const newAdmin: User = {

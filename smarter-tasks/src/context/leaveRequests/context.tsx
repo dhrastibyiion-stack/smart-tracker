@@ -37,6 +37,7 @@ export const LeaveRequestsProvider = ({
     async (data: {
       requesterId: number;
       requesterName: string;
+      leaveType: "Casual" | "Sick" | "UnPaid";
       days: number;
       reason: string;
       startDate: string;
