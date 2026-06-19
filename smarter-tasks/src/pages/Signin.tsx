@@ -67,7 +67,7 @@ const Signin = () => {
 
     const { email, password } = formData;
 
-    // NOTE (demo / interview): two admin accounts are hard-coded for interview
+    // NOTE : two admin accounts are hard-coded for "company1" and "company2" with the password "admin123" for testing
     // and demo purposes. These shortcuts allow signing in as an admin without
     // a backend authentication flow.
     //

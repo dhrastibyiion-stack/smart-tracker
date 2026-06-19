@@ -24,15 +24,6 @@ const ProjectManagerDashboard = () => {
 
   const isProjectManager = role === "projectManager";
 
-      const selfLeaveDays = useMemo(() => {
-    const from = selfLeave.startDate;
-    const to = selfLeave.endDate;
-    if (!from || !to) return 0;
-    const diffMs = new Date(to).getTime() - new Date(from).getTime();
-    if (diffMs < 0) return 0;
-    return Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
-  }, [selfLeave.startDate, selfLeave.endDate]);
-
   const currentMemberId = members.find(
     (m) => m.email === user?.username || m.name === user?.name
   )?.id;
@@ -56,6 +47,8 @@ const ProjectManagerDashboard = () => {
   const [newTask, setNewTask] = useState({ title: "", projectId: "", assignedTo: "" });
   const [editingLeaveId, setEditingLeaveId] = useState<number | null>(null);
   const [editingLeave, setEditingLeave] = useState({ requesterName: "", leaveType: "Casual" as "Casual" | "Sick" | "UnPaid", days: 1, reason: "", startDate: "", endDate: "" });
+  const [selfLeave, setSelfLeave] = useState({ leaveType: "Casual" as "Casual" | "Sick" | "UnPaid", days: 1, reason: "", startDate: "", endDate: "", requesterId: user?.email || "", requesterName: user?.name || "" });
+  const [newLeave, setNewLeave] = useState({ requesterId: 0, requesterName: "", leaveType: "Casual" as "Casual" | "Sick" | "UnPaid", days: 1, reason: "", startDate: "", endDate: "" });
 
   const memberMap = new Map<number, string>();
   members.forEach((m) => memberMap.set(m.id, m.name));

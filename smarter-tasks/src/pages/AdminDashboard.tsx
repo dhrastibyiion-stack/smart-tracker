@@ -170,10 +170,6 @@ const AdminDashboard = () => {
     cancelEditLeave();
   };
 
-  const handleLeaveStatus = (id: number, status: RequestStatus) => {
-    updateLeaveRequestStatus(id, status);
-  };
-
   const openDatePicker = () => {
     dateInputRef.current?.showPicker();
   };
