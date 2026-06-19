@@ -70,7 +70,7 @@ const LeaveRequestPage = () => {
 
   const filteredRequests = useMemo(() => {
     return leaveRequests.filter((req) => {
-      if (filterEmployeeName && req.requesterName !== filterEmployeeName) return false;
+      if (filterEmployeeNam e && req.requesterName !== filterEmployeeName) return false;
       if (filterLeaveType && req.leaveType !== filterLeaveType) return false;
       if (filterStatus && req.status !== filterStatus) return false;
       if (filterFromDate && req.startDate < formatDateDisplay(filterFromDate.toISOString()))
